@@ -171,7 +171,8 @@ int main() {
 	std::signal(SIGKILL, CatchSignal);
 	std::signal(SIGSEGV, CatchSignal);
 
-	std::thread(PlayerEventQueueListener).detach();
+	// Local/LAN customization: Discord queueing is disabled in worldserver.cpp.
+	// std::thread(PlayerEventQueueListener).detach();
 
 	worldserver = new WorldServer;
 
