@@ -192,6 +192,31 @@ sudo apt install build-essential cmake ninja-build git \
      zlib1g-dev uuid-dev libssl-dev libdbd-mysql-perl
 ```
 
+### Android ARM64 (Debian/Ubuntu proot through Termux)
+
+On Android devices such as the AYN Thor, run these commands inside the Debian/Ubuntu
+ARM64 proot environment used for the server. Install the Linux dependencies above in
+that environment first. The Lua paths below refer to the proot distribution's libraries.
+
+From the repository root, enter the server source directory and configure the build:
+
+```bash
+cd Release-NMS-Server
+cmake -S . -B build \
+  -DLUA_INCLUDE_DIR=/usr/include/lua5.1 \
+  -DLUA_LIBRARY=/usr/lib/aarch64-linux-gnu/liblua5.1.so
+```
+
+`zone/CMakeLists.txt` includes
+`target_include_directories(lua_zone PRIVATE ${LUA_INCLUDE_DIR})` immediately after
+the `lua_zone` library declaration so its sources can find Lua headers such as `lua.hpp`.
+
+Build from the same server source directory:
+
+```bash
+cmake --build build -j2
+```
+
 ---
 
 ## Post-install fixes
