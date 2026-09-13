@@ -91,17 +91,20 @@ void WorldServer::ProcessMessage(uint16 opcode, EQ::Net::Packet &p)
 		cereal::BinaryInputArchive archive(ss);
 		archive(n);
 
-		DiscordManager::Instance()->QueuePlayerEventMessage(n);
+		// Local/LAN customization: do not forward player events to Discord.
+		// DiscordManager::Instance()->QueuePlayerEventMessage(n);
 
 		break;
 	}
+
 	case ServerOP_DiscordWebhookMessage: {
 		auto *q = (DiscordWebhookMessage_Struct *) p.Data();
 
-		DiscordManager::Instance()->QueueWebhookMessage(
-			q->webhook_id,
-			q->message
-		);
+		// Local/LAN customization: do not queue explicit Discord webhooks.
+		// DiscordManager::Instance()->QueueWebhookMessage(
+		//     q->webhook_id,
+		//     q->message
+		// );
 
 		break;
 	}
