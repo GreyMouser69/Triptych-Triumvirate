@@ -16,7 +16,31 @@ existing pre-built binaries do not include this restoration. See
 
 ---
 
-### This update's changes (9/9)
+### This update's changes (9/14)
+
+- **Prophecy of Ro** — Theater of Blood / Deathknell / Razorthorn access chains, ToB armor
+  drops + raid lockouts, phase 2/3/5 side quests, raids (Burning Prince, Sullon Zek, Suchun,
+  Daosheen, Freeport Arena, Corruption of Ro), Spirit Mark Armor, Arcstone, Tunare's Shrine,
+  Black Orb of the Scrykin (rough, not quite completable, more scaffolding)
+- **GoD** — Qinimi events solo-requestable; Nalasrine stocks Muramite armor solvents
+- **Water theme** — First Ripple / Mal'zeth V'Tide questlines; **Echo of Memory renamed to
+  Triune of Fate** (matches modern upstream; client add-on + NPC updates)
+- **Heroic stats** — reworked to better represent actual classes, dinput8 also reflects this
+- **New rule** — `Custom:AllowAllClassesClickItems` (default **false**): let all classes click
+  items regardless of class restrictions on click effects
+- **Cartographer title fix** — the TSS Charm of Lore title no longer shows up on every
+  character; only the quest grants it now
+- Began very sketchy frail and buggy framework for shrouds and housing (very WIP based on zeklabs/Imperium)
+- Added a truckload of recipes, items for recipes up through HoT, lazily wired in and expansion gated
+- Spell research actually exists now
+- Fixed wizard crit damage now its 1.5x instead of 0, fitting of wizards
+- Added more waypoints to GoD, OoW
+- Added some holiday quest scaffolding
+- Added TBS/TSS quest placeholders, scaffolds
+- **Server binaries** rebuilt; **database re-sanitized** (housing, shroud state and guild
+  bank/ranks/tributes are now cleared as well)
+
+### Earlier (9/9)
 
 - **Melee while casting/moving** — balance patch; toggleable via `Custom:AllowAttackWhileCasting` (default **false**)
 - **Bow AA ↔ thrown AA** — bow AA now affects thrown AA and vice-versa
@@ -66,7 +90,7 @@ Each folder has its own README with detailed instructions. Start with the server
 
 - **Multiclassing** — a character can take up to three classes at once
 - **Multiple pets** — pet classes control several pets, with a custom pet window
-- **Echo of Memory** — an alternate currency that drops from kills and buys unlocks
+- **Triune of Fate** — an alternate currency that drops from kills and buys unlocks
 - **Item upgrade tiers** — drops can roll as Enchanted or Legendary versions
 - **Offline bazaar** — offline trader/buyer/barter support
 - **Glamour & languages** — mount glamour merchant, armour glamour, and a languages trainer
@@ -309,6 +333,21 @@ cp -f maps/nektulos-backup.XXXXXX/nektulos.nav maps/nav/nektulos.nav
 ```
 
 Restart the server again after restoring the files.
+
+---
+
+## Known gaps / work in progress
+
+Honest state of the world, so you know what you are getting into:
+
+- **Expansion content depth varies a lot.** The DoN, LDoN, PoR, TBS and TSS ranges are
+  scaffold-level — playable in spots, thin almost everywhere else.
+- **Factions are incomplete and sometimes flat-out wrong.** Missing or erroneous faction
+  hooks are one of the biggest gaps in the content.
+- **DoN alternate currency** (radiant/ebon crystals) is not implemented yet.
+- **Dynamic zone templates** — only 5 ship with the database; most setups will want 20+
+  for instanced/expedition content.
+- **Shrouds** are still being tuned.
 
 ---
 
