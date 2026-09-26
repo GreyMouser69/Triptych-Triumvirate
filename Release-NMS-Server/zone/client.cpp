@@ -12371,10 +12371,6 @@ std::vector<int> Client::GetLearnableDisciplines(uint8 min_level, uint8 max_leve
 			continue;
 		}
 
-		if (spells[spell_id].classes[Class::Warrior] == 0) {
-			continue;
-		}
-
 		uint8 required_level = GetSpellLevelForCaster(spell_id);
 		if (required_level == 255) {
 			continue;
@@ -12453,10 +12449,6 @@ std::vector<int> Client::GetScribeableSpells(uint8 min_level, uint8 max_level) {
 		}
 
 		if (IsDiscipline(spell_id)) {
-			continue;
-		}
-
-		if (spells[spell_id].classes[Class::Warrior] == 0) {
 			continue;
 		}
 
