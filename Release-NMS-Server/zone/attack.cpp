@@ -4268,7 +4268,7 @@ bool Client::CheckDoubleAttack()
 // with varying triple attack skill (1-3% error at least)
 bool Client::CheckTripleAttack()
 {
-	int chance;
+	int chance = 0;
 
 	if (RuleB(Combat, ClassicTripleAttack)) {
 		if (
@@ -4281,21 +4281,35 @@ bool Client::CheckTripleAttack()
 				HasClass(Class::Berserker)
 			)
 		) {
-			switch (GetClass()) {
-				case Class::Warrior:
-					chance = RuleI(Combat, ClassicTripleAttackChanceWarrior);
-					break;
-				case Class::Ranger:
-					chance = RuleI(Combat, ClassicTripleAttackChanceRanger);
-					break;
-				case Class::Monk:
-					chance = RuleI(Combat, ClassicTripleAttackChanceMonk);
-					break;
-				case Class::Berserker:
-					chance = RuleI(Combat, ClassicTripleAttackChanceBerserker);
-					break;
-				default:
-					break;
+			// A multiclient can qualify for several of the classes checked above, so take
+			// the highest chance across the classes this client actually owns.
+			for (int class_id = Class::Warrior; class_id <= Class::Berserker; ++class_id) {
+				int class_chance = 0;
+
+				if (!HasClass(class_id)) {
+					continue;
+				}
+
+				switch (class_id) {
+					case Class::Warrior:
+						class_chance = RuleI(Combat, ClassicTripleAttackChanceWarrior);
+						break;
+					case Class::Ranger:
+						class_chance = RuleI(Combat, ClassicTripleAttackChanceRanger);
+						break;
+					case Class::Monk:
+						class_chance = RuleI(Combat, ClassicTripleAttackChanceMonk);
+						break;
+					case Class::Berserker:
+						class_chance = RuleI(Combat, ClassicTripleAttackChanceBerserker);
+						break;
+					default:
+						break;
+				}
+
+				if (class_chance > chance) {
+					chance = class_chance;
+				}
 			}
 		}
 	} else {
