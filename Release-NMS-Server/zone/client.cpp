@@ -12375,11 +12375,16 @@ std::vector<int> Client::GetLearnableDisciplines(uint8 min_level, uint8 max_leve
 			continue;
 		}
 
-		if (max_level && spells[spell_id].classes[m_pp.class_ - 1] > max_level) {
+		uint8 required_level = GetSpellLevelForCaster(spell_id);
+		if (required_level == 255) {
 			continue;
 		}
 
-		if (min_level > 1 && spells[spell_id].classes[m_pp.class_ - 1] < min_level) {
+		if (max_level && required_level > max_level) {
+			continue;
+		}
+
+		if (min_level > 1 && required_level < min_level) {
 			continue;
 		}
 
