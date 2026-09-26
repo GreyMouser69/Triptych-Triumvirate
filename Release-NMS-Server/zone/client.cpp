@@ -10042,18 +10042,52 @@ return;
 
 // returns the character's faction level, adjusted for racial, class, and deity modifiers
 int32 Client::GetModCharacterFactionLevel(int32 faction_id) {
-	int32 Modded = GetCharacterFactionLevel(faction_id);
-	FactionMods fm;
-	if (content_db.GetFactionData(&fm, GetClass(), GetFactionRace(), GetDeity(), faction_id))
-	{
-		Modded += fm.base + fm.class_mod + fm.race_mod + fm.deity_mod;
+    int32 base_faction = GetCharacterFactionLevel(faction_id);
 
-		//Tack on any bonuses from Alliance type spell effects
-		Modded += GetFactionBonus(faction_id);
-		Modded += GetItemFactionBonus(faction_id);
-	}
+    if (RuleB(Custom, MulticlassingEnabled)) {
+        int32 bonus_faction = GetFactionBonus(faction_id) + GetItemFactionBonus(faction_id);
+        uint32 race = GetFactionRace();
+        uint32 deity = GetDeity();
 
-	return Modded;
+        int32 worst_faction = 0;
+        bool found_faction_data = false;
+
+        for (const auto& class_bitmask : player_class_bitmasks) {
+            uint8 class_id = class_bitmask.first;
+            uint16 class_bit = class_bitmask.second;
+
+            if ((GetClassesBits() & class_bit) != 0) {
+                FactionMods fm;
+                if (content_db.GetFactionData(&fm, class_id, race, deity, faction_id)) {
+                    int32 class_faction = base_faction + fm.base + fm.class_mod + fm.race_mod + fm.deity_mod + bonus_faction;
+
+                    if (!found_faction_data) {
+                        worst_faction = class_faction;
+                        found_faction_data = true;
+                    } else {
+                        worst_faction = std::min(worst_faction, class_faction);
+                    }
+                }
+            }
+        }
+
+        if (found_faction_data) {
+            return worst_faction;
+        }
+        // No owned classes had valid faction data; fall through to single-class fallback
+    }
+
+    // Single-class fallback (multiclassing off, or multiclassing on but no valid data)
+    FactionMods fm;
+    if (content_db.GetFactionData(&fm, GetClass(), GetFactionRace(), GetDeity(), faction_id)) {
+        base_faction += fm.base + fm.class_mod + fm.race_mod + fm.deity_mod;
+
+        // Tack on any bonuses from Alliance type spell effects
+        base_faction += GetFactionBonus(faction_id);
+        base_faction += GetItemFactionBonus(faction_id);
+    }
+
+    return base_faction;
 }
 
 void Client::MerchantRejectMessage(Mob *merchant, int primaryfaction)
