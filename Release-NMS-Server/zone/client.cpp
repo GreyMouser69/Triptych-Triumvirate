@@ -12522,8 +12522,8 @@ std::vector<int> Client::GetScribeableSpells(uint8 min_level, uint8 max_level) {
 			const auto& g = spell_group_cache.find(spells[spell_id].spell_group);
 			if (g != spell_group_cache.end()) {
 				for (const auto& s : g->second) {
-					if (
-						EQ::ValueWithin(spells[s].classes[m_pp.class_ - 1], min_level, max_level) &&
+					uint8 required_level = GetSpellLevelForCaster(s);
+					if (required_level != 255 && EQ::ValueWithin(required_level, min_level, max_level) &&
 						s == spell_id &&
 						scribeable
 					) {
