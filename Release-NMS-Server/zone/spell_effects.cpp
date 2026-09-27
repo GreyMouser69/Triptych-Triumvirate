@@ -5436,8 +5436,24 @@ int64 Mob::CalcAAFocus(focusType type, const AA::Rank &rank, uint16 spell_id, bo
 			case SE_LimitClass:
 				// Do not use this limit more then once per spell. If multiple class, treat value like items
 				// would.
-				if (!PassLimitClass(base_value, GetClass())) {
-					LimitFailure = true;
+				if (IsClient() && RuleB(Custom, MulticlassingEnabled)) {
+					bool any_class_passes = false;
+					uint32 owned_classes = CastToClient()->GetClassesBits();
+					for (const auto& class_bitmask : player_class_bitmasks) {
+						uint8 class_id = class_bitmask.first;
+						uint16 class_bit = class_bitmask.second;
+						if ((owned_classes & class_bit) && PassLimitClass(base_value, class_id)) {
+							any_class_passes = true;
+							break;
+						}
+					}
+					if (!any_class_passes) {
+						LimitFailure = true;
+					}
+				} else {
+					if (!PassLimitClass(base_value, GetClass())) {
+						LimitFailure = true;
+					}
 				}
 				break;
 
@@ -6153,8 +6169,24 @@ int64 Mob::CalcFocusEffect(focusType type, uint16 focus_id, uint16 spell_id, boo
 			case SE_LimitClass:
 				// Do not use this limit more then once per spell. If multiple class, treat value like items
 				// would.
-				if (!PassLimitClass(focus_spell.base_value[i], GetClass())) {
-					return 0;
+				if (IsClient() && RuleB(Custom, MulticlassingEnabled)) {
+					bool any_class_passes = false;
+					uint32 owned_classes = CastToClient()->GetClassesBits();
+					for (const auto& class_bitmask : player_class_bitmasks) {
+						uint8 class_id = class_bitmask.first;
+						uint16 class_bit = class_bitmask.second;
+						if ((owned_classes & class_bit) && PassLimitClass(focus_spell.base_value[i], class_id)) {
+							any_class_passes = true;
+							break;
+						}
+					}
+					if (!any_class_passes) {
+						return 0;
+					}
+				} else {
+					if (!PassLimitClass(focus_spell.base_value[i], GetClass())) {
+						return 0;
+					}
 				}
 				break;
 
@@ -6226,8 +6258,26 @@ int64 Mob::CalcFocusEffect(focusType type, uint16 focus_id, uint16 spell_id, boo
 			case SE_Ff_CasterClass: {
 
 				// Do not use this limit more then once per spell. If multiple class, treat value like items would.
-				if (caster && !PassLimitClass(focus_spell.base_value[i], caster->GetClass())) {
-					return 0;
+				if (caster) {
+					if (caster->IsClient() && RuleB(Custom, MulticlassingEnabled)) {
+						bool any_class_passes = false;
+						uint32 owned_classes = caster->CastToClient()->GetClassesBits();
+						for (const auto& class_bitmask : player_class_bitmasks) {
+							uint8 class_id = class_bitmask.first;
+							uint16 class_bit = class_bitmask.second;
+							if ((owned_classes & class_bit) && PassLimitClass(focus_spell.base_value[i], class_id)) {
+								any_class_passes = true;
+								break;
+							}
+						}
+						if (!any_class_passes) {
+							return 0;
+						}
+					} else {
+						if (!PassLimitClass(focus_spell.base_value[i], caster->GetClass())) {
+							return 0;
+						}
+					}
 				}
 				break;
 			}
