@@ -9007,12 +9007,12 @@ bool Mob::PassCastRestriction(int value)
 		}
 
 		case IS_CLIENT_AND_MALE_PLATE_USER:
-			if (IsClient() && GetGender() == Gender::Male && IsPlateClass(GetClass()))
+			if (IsClient() && GetGender() == Gender::Male && HasAnyClass({Class::Warrior, Class::Cleric, Class::Paladin, Class::ShadowKnight, Class::Bard}))
 				return true;
 			break;
 
 		case IS_CLEINT_AND_MALE_DRUID_ENCHANTER_MAGICIAN_NECROANCER_SHAMAN_OR_WIZARD:
-			if (IsClient() && GetGender() == Gender::Male && (IsCasterClass(GetClass()) && GetClass() != Class::Cleric))
+			if (IsClient() && GetGender() == Gender::Male && HasAnyClass({Class::Druid, Class::Shaman, Class::Necromancer, Class::Wizard, Class::Magician, Class::Enchanter}))
 				return true;
 			break;
 
@@ -9023,12 +9023,12 @@ bool Mob::PassCastRestriction(int value)
 			break;
 
 		case IS_CLIENT_AND_FEMALE_PLATE_USER:
-			if (IsClient() && GetGender() == Gender::Female && IsPlateClass(GetClass()))
+			if (IsClient() && GetGender() == Gender::Female && HasAnyClass({Class::Warrior, Class::Cleric, Class::Paladin, Class::ShadowKnight, Class::Bard}))
 				return true;
 			break;
 
 		case IS_CLIENT_AND_FEMALE_DRUID_ENCHANTER_MAGICIAN_NECROANCER_SHAMAN_OR_WIZARD:
-			if (IsClient() && GetGender() == Gender::Female && (IsCasterClass(GetClass()) && GetClass() != Class::Cleric))
+			if (IsClient() && GetGender() == Gender::Female && HasAnyClass({Class::Druid, Class::Shaman, Class::Necromancer, Class::Wizard, Class::Magician, Class::Enchanter}))
 				return true;
 			break;
 
