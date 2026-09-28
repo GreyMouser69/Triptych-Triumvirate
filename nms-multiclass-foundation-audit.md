@@ -3,7 +3,7 @@
 **Repository:** Triptych Triumvirate / NMS (EQEmu 23.8.1 fork, RoF2 client)
 **Branch:** `nms-development`
 **Compiled by:** opencode agent synthesis (prior explore-agent passes + direct file verification)
-**Last updated:** 2026-09-28 (post-B-5 resolution; C-4 plate-user fixed in `2ce84053`; supersedes prior audit docs)
+**Last updated:** 2026-09-28 (post-B-5 resolution; C-4 plate-user fixed in `2ce84053`; B-6 `MerchantRejectMessage` verified cosmetic-only — see §6.2; supersedes prior audit docs)
 
 > **AUDIT ONLY — NO CODE MODIFICATIONS.** This document is the canonical historical record for the
 > multiclass foundation audit. It is documentation only and does not change any source.
@@ -165,7 +165,7 @@ occurrences, and the **plate-user C-4 (Jann/illusion) set** (`2ce84053`). Remain
 | B-3 (HIGH) | `attack.cpp:4688` `FrontalStunImmunityClasses & GetPlayerClassBit(GetClass())` | **RECLASSIFIED → E (NPC-only); verified correct** | Frontal stun immunity is evaluated for the **NPC** caster/attacker, not the multiclass player; and `Mob::CheckFrontalStun` at this site is an NPC combat path. No fix needed. |
 | B-4 (HIGH) | `attack.cpp:6834` throwing halving `GetClass() != Class::Berserker` | **FIXED** | `92cfd33c` (+ `7d328cf4` tune sync). |
 | B-5 (HIGH) | `aa.cpp:1013, 1019, 1960` raw `(1 << GetClass())` | **CLOSED — already correct; benign display redundancy** | See §4.1. |
-| B-6 (MEDIUM) | `client.cpp:10152` `MerchantRejectMessage` `itoa(GetClass())` | **OPEN — design question** | §6.2. Cosmetic/UX; which class should the message show? |
+| B-6 (MEDIUM) | `client.cpp:10152` `MerchantRejectMessage` `itoa(GetClass())` | **OPEN — policy/design deferred (cosmetic)** | §6.2. Verified 2026-09-28: message-selection/display only; merchant-open + item gates already multiclass-aware; cannot permit/deny transactions. |
 
 ### C — Semantic-undefined findings (proc / cast-restriction conditions)
 
@@ -280,11 +280,53 @@ because no semantic policy is set:**
 
 Requires a project decision before any mechanical fix. Remains the top deferred item.
 
-### 6.2 B-6 — `MerchantRejectMessage` class name (OPEN — design question; MEDIUM)
+### 6.2 B-6 — `MerchantRejectMessage` rejection text (OPEN — policy/design deferred; cosmetic-only; MEDIUM)
 
-`zone/client.cpp:10152`: `merchant->SayString(..., itoa(GetClass()))` sends the Bard sentinel (8) to the
-client message. Cosmetic/UX only; does not affect whether rejection occurs. Which class to display
-(worst-qualifying owned class vs. primary) is an open design choice.
+Verified 2026-09-28. `Client::MerchantRejectMessage()` is `zone/client.cpp:10093-10160`. Its sole caller
+is `Client::Handle_OP_ShopRequest()` (`zone/client_packet.cpp:14477`), and it executes **only after** the
+merchant-open faction gate has already rejected the client (`client_packet.cpp:14472-14479`,
+`factionlvl >= 7`). It has **no effect** on merchant access, buying, selling, faction values, or
+transaction state; its only effect is selecting and emitting a rejection `SayString`.
+
+**The gates are already multiclass-aware:**
+
+- The merchant-open gate uses `Client::GetFactionLevel()` (`client.cpp:9747`, worst-of-owned-class
+  `std::min` loop), so rejection/acceptance is already worst-class correct.
+- Item-level merchant faction checks (AdventureMerchant; AltCurrency merchant request/purchase/sell —
+  `client_packet.cpp:2222, 2412, 2796, 2858, 3065, 3192`) use the `abc7826f` fix to
+  `GetModCharacterFactionLevel()` (`client.cpp:10044`).
+
+**The two remaining defects are message-only:**
+
+1. **Reason attribution.** `MerchantRejectMessage()` independently calls
+   `content_db.GetFactionData(&fmod, GetClass(), GetFactionRace(), GetDeity(), primaryfaction)`
+   (`client.cpp:10102`). Under multiclassing `GetClass()` returns the Bard sentinel
+   (`client.cpp:1990`), so it uses **Bard's** `class_mod` when choosing whether to blame
+   deeds / race / class / deity.
+2. **Displayed class.** If the class branch is selected,
+   `merchant->SayString(zone->random.Int(WONT_SELL_CLASS1, WONT_SELL_CLASS5), itoa(GetClass()))`
+   (`client.cpp:10152`, `%B3(13)` class-name field) renders **"Bards"** even when the client
+   **does not own** Bard.
+
+**Cannot permit or deny a transaction.** The allow/deny decision is made solely by the caller's
+worst-of-class gate; this function is void and mutates no merchant/transaction state. With
+multiclassing disabled, behavior is correct/upstream-equivalent. Bots/Mercs do not reach this
+Client-only path.
+
+**Design constraint.** There is no established NMS concept of a single primary/representative
+multiclass class. `GetModCharacterFactionLevel()` returns only the numeric worst value and does not
+expose the owned class responsible for the worst class modifier — displaying that class would require
+additional argmin tracking/API logic. The audit established the **gate** semantics (worst-of-class),
+**not** a UI/message semantics; no "worst faction class" message meaning is implied.
+
+**Viable product/UI choices (decide when/if touched):** display the worst-modifier owned class;
+enumerate owned classes (client-label precedent, `MQ2Labels.cpp:924-946`); use class-neutral rejection
+wording; or intentionally retain the legacy/sentinel behavior. Choosing among them is a product/UI
+decision, not a mechanical fix.
+
+**Classification: cosmetic-only multiclass defect; policy/design deferred.**
+Confidence **HIGH**: merchant access/transactions unaffected. Confidence **HIGH**: Bard-sentinel
+attribution/display is wrong for clients not owning Bard.
 
 ### 6.3 C-4 plate-user Jann/illusion restrictions (FIXED — `2ce84053`)
 
@@ -405,7 +447,8 @@ for the live split.
   C-4 spans multiple rows): **11 fixed** (A-1/2/3, B-2, B-4, C-1/2/3, C-4 hybrid+clr-shm-dru, C-4
   knight-hybrid/warrior-caster-priest/caster-priest/not-bard, C-4 plate-user), **2 closed/reclassified
   as already correct** (B-3 NPC-only, B-5 display redundancy), **2 deferred/policy-blocked** (B-1
-  `DoDamageCaps`, C-4 END-OR-MANA), **1 still open design question** (B-6 `MerchantRejectMessage`).
+  `DoDamageCaps`, C-4 END-OR-MANA), **1 still open design question** (B-6 `MerchantRejectMessage` —
+  cosmetic-only, verified 2026-09-28; merchant gates already multiclass-aware).
 - Ledger hashes were re-verified against `git log` on `nms-development` on 2026-09-28. Do not trust the
   commit columns in older audit files (several were wrong).
 - Line numbers in this document are the current `nms-development` snapshot (2026-09-28) unless the §3
@@ -421,7 +464,7 @@ Ordered by (a) severity, (b) whether policy is decided.
 |---|------|-----|---------|---------------|
 | 1 | `DoDamageCaps` switch — multiclass chars get melee cap | B-1 (CRITICAL) | MIN/MAX/melee-wins choice | **Blocked** — no decision |
 | 2 | END-OR-MANA latent representation bug | C-4 (MEDIUM) | Policy + no shipped data to validate against | **Blocked** — dormant; do-not-modify decision stands |
-| 3 | `MerchantRejectMessage` class display | B-6 (MEDIUM) | Which class to display | Open design question |
+| 3 | `MerchantRejectMessage` rejection text | B-6 (MEDIUM) | Product/UI choice: worst-modifier class, enumerate owned, neutral text, or sentinel | Open design question — cosmetic, non-gameplay |
 | 4 | Faction **write-path** review | (adjacent) | Not yet itemized as a finding; listed for completeness when faction work resumes | Not started |
 | 5 | Bots (full subsystem) | D series / out-of-scope | Bot subsystem deferred by project scope | Out of scope until project says otherwise |
 
