@@ -8451,7 +8451,7 @@ bool Mob::PassCastRestriction(int value)
 			break;
 
 		case IS_CLASS_MELEE_THAT_CAN_BASH_OR_KICK_EXCEPT_BARD:
-			if ((GetClass() != Class::Bard) && (GetClass() != Class::Rogue) && IsFighterClass(GetClass()))
+			if (HasAnyClass({ Class::Warrior, Class::Paladin, Class::Ranger, Class::ShadowKnight, Class::Monk, Class::Beastlord, Class::Berserker }))
 				return true;
 			break;
 
@@ -8461,12 +8461,12 @@ bool Mob::PassCastRestriction(int value)
 			break;
 
 		case IS_CLASS_PURE_CASTER:
-			if (IsINTCasterClass(GetClass()))
+			if (HasAnyClass({ Class::Necromancer, Class::Wizard, Class::Magician, Class::Enchanter }))
 				return true;
 			break;
 
 		case IS_CLASS_HYBRID_CLASS:
-			if (IsHybridClass(GetClass()))
+			if (HasAnyClass({ Class::Paladin, Class::Ranger, Class::ShadowKnight, Class::Bard, Class::Beastlord }))
 				return true;
 			break;
 
@@ -8547,12 +8547,12 @@ bool Mob::PassCastRestriction(int value)
 			break;
 
 		case IS_CLASS_CLR_SHM_DRU:
-			if (IsWISCasterClass(GetClass()))
+			if (HasAnyClass({ Class::Cleric, Class::Druid, Class::Shaman }))
 				return true;
 			break;
 
 		case IS_CLASS_NOT_WAR_PAL_SK:
-			if ((GetClass() != Class::Warrior) && (GetClass() != Class::Paladin) && (GetClass() != Class::ShadowKnight))
+			if (!HasAnyClass({ Class::Warrior, Class::Paladin, Class::ShadowKnight }))
 				return true;
 			break;
 
