@@ -8839,12 +8839,12 @@ bool Mob::PassCastRestriction(int value)
 			break;
 
 		case IS_CLASS_KNIGHT_HYBRID_MELEE:
-			if (IsHybridClass(GetClass()) || IsNonSpellFighterClass(GetClass()))
+			if (HasAnyClass({ Class::Warrior, Class::Paladin, Class::Ranger, Class::ShadowKnight, Class::Monk, Class::Bard, Class::Rogue, Class::Beastlord, Class::Berserker }))
 				return true;
 			break;
 
 		case IS_CLASS_WARRIOR_CASTER_PRIEST:
-			if (IsCasterClass(GetClass()) || HasClass(Class::Warrior))
+			if (HasAnyClass({ Class::Warrior, Class::Cleric, Class::Druid, Class::Shaman, Class::Necromancer, Class::Wizard, Class::Magician, Class::Enchanter }))
 				return true;
 			break;
 
@@ -9070,7 +9070,7 @@ bool Mob::PassCastRestriction(int value)
 
 
 		case IS_CLASS_CASTER_PRIEST:
-			if (IsCasterClass(GetClass()))
+			if (HasAnyClass({ Class::Cleric, Class::Druid, Class::Shaman, Class::Necromancer, Class::Wizard, Class::Magician, Class::Enchanter }))
 				return true;
 			break;
 
@@ -9107,7 +9107,7 @@ bool Mob::PassCastRestriction(int value)
 		}
 
 		case IS_NOT_CLASS_BARD:
-			if (GetClass() != Class::Bard)
+			if (!HasClass(Class::Bard))
 				return true;
 			break;
 
