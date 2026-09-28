@@ -3,7 +3,7 @@
 **Repository:** Triptych Triumvirate / NMS (EQEmu 23.8.1 fork, RoF2 client)
 **Branch:** `nms-development`
 **Compiled by:** opencode agent synthesis (prior explore-agent passes + direct file verification)
-**Last updated:** 2026-09-28 (post-B-5 resolution; C-4 plate-user fixed in `2ce84053`; B-6 `MerchantRejectMessage` verified cosmetic-only — see §6.2; faction write-path verified class-insensitive — see §5.3; supersedes prior audit docs)
+**Last updated:** 2026-09-28 (post-B-5 resolution; C-4 plate-user fixed in `2ce84053`; B-6 `MerchantRejectMessage` verified cosmetic-only — see §6.2; faction write-path verified class-insensitive — see §5.3; B-1 `DoDamageCaps` reachability/severity reconciled — see §6.1; supersedes prior audit docs)
 
 > **AUDIT ONLY — NO CODE MODIFICATIONS.** This document is the canonical historical record for the
 > multiclass foundation audit. It is documentation only and does not change any source.
@@ -45,7 +45,8 @@ caps, combat eligibility checks, AA eligibility) plus every class-bearing proc c
 
 > **Status note:** Since the original tally, most A/B/C findings have been FIXED (see §3 ledger) or
 > formally CLOSED/RECLASSIFIED (B-3, B-5). The count table is the historical opening balance; §4 is the
-> live status.
+> live status. B-1's severity is reconsidered to **LOW under the shipped config** (reachability, §6.1);
+> the tally column above is the historical opening balance.
 
 ---
 
@@ -161,7 +162,7 @@ occurrences, and the **plate-user C-4 (Jann/illusion) set** (`2ce84053`). Remain
 
 | Find | Site | Status | Evidence |
 |------|------|--------|----------|
-| B-1 (CRITICAL) | `attack.cpp:1380-1452` `DoDamageCaps` switch over `GetClass()` — all multiclass chars fall through to the melee `default` cap | **DEFERRED — policy-blocked** | Semantics (MIN/MAX/melee-wins) not decided; see §6.1. No source fix. |
+| B-1 (LOW) | `attack.cpp:1380-1452` `DoDamageCaps` switch over `GetClass()` — all multiclass chars fall through to the melee `default` cap | **DEFERRED — policy/design** | Shipped `Combat:LevelToStopDamageCaps` = 20 → reachable only at levels 1–19; behavior is permissive (global-highest tier), not fail-closed. Severity conditional on the server rule value; see §6.1. No source fix. |
 | B-2 (HIGH) | `attack.cpp:1622` `GetClass() != Class::Bard` attack-while-casting | **FIXED** | `2690ef5f` → `!HasClass(Class::Bard)`. |
 | B-3 (HIGH) | `attack.cpp:4688` `FrontalStunImmunityClasses & GetPlayerClassBit(GetClass())` | **RECLASSIFIED → E (NPC-only); verified correct** | Frontal stun immunity is evaluated for the **NPC** caster/attacker, not the multiclass player; and `Mob::CheckFrontalStun` at this site is an NPC combat path. No fix needed. |
 | B-4 (HIGH) | `attack.cpp:6834` throwing halving `GetClass() != Class::Berserker` | **FIXED** | `92cfd33c` (+ `7d328cf4` tune sync). |
@@ -324,19 +325,68 @@ called at `client_packet.cpp:1402`); `SendFactionMessage` suppresses the message
 
 ## 6. Deferred, Policy-Blocked, and Out-of-Scope
 
-### 6.1 B-1 — `DoDamageCaps` (DEFERRED — policy-blocked; CRITICAL)
+### 6.1 B-1 — `DoDamageCaps` (DEFERRED — policy/design; LOW under shipped config; top queue item)
 
 `zone/attack.cpp:1380, 1398, 1416, 1434, 1452`. Five identical `switch (GetClass())` blocks; Bard
-sentinel not in any `case`, so all multiclass characters receive the melee `default` cap. **No fix made
-because no semantic policy is set:**
+sentinel (8) is not in any `case`, so every multiclass-enabled **Client** falls through to the melee
+`default` cap. The representation mismatch is real; its practical shipped scope is much smaller than
+originally documented, and current behavior is the globally most permissive tier. **Not fixed and not
+verified-correct:** no semantic policy has been selected.
 
-| Policy | Description | Precedent |
-|--------|-------------|-----------|
-| MIN (most restrictive) | Tightest cap among owned classes | `GetFactionLevel` (min faction) |
-| MAX (least restrictive) | Highest cap among owned classes | `CalcBaseHP`, `MaxSkill` |
-| Melee wins | Any melee class owned → melee cap | No direct precedent |
+**Reachability (shipped config).** The shipped rule `Combat:LevelToStopDamageCaps` = **20** (ruletypes
+default; confirmed in the `release-peq.sql` DB snapshot in `database/release-peq.zip`). `DoDamageCaps`
+returns uncapped above `stop_level` (`attack.cpp:1363-1365`), so the class-dependent tiers execute
+**only at levels 1–19** on the shipped NMS configuration. This is **conditional** on the server's
+runtime value: rules are DB-stored and a server can raise the rule (the optional SQL
+`utils/sql/git/optional/2017_01_17_LevelStopDamageCaps.sql` documents "1 disables, 20 approximates old
+behavior"). Tier bands 20–29 / 30–39 / 40–69 engage only if the server raises it; levels ≥70 use
+class-independent level multipliers (`7*level` / `6*level` / `5*level` / `4*level`) and are never
+class-split.
 
-Requires a project decision before any mechanical fix. Remains the top deferred item.
+**Reachable class tiers (shipped config; levels `<10` / `10–19`):**
+
+| Tier | `< 10` | `10–19` |
+|------|--------|---------|
+| `default` (melee: Warrior, Paladin, Ranger, Bard, Monk, Rogue, SK, Beastlord, Berserker) | 10 | 14 |
+| Priest (Cleric, Druid, Shaman) | 9 | 12 |
+| INT caster (Necromancer, Wizard, Magician, Enchanter) | 6 | 10 |
+
+Non-reachable on shipped config (reference only): 20–29 → 30/20/12; 30–39 → 60/26/18; 40–69 →
+200/80/40. The `default` tier is the **global highest** in every band.
+
+**Failure mode — permissive, not fail-closed.** Bard (8) is a member of the `default` group and appears
+in no `case`, so the sentinel routes every multiclass-enabled Client into the **default / global-highest
+tier** (`14`/`10` > priest `12`/`9` > caster `10`/`6`). Current behavior is therefore more permissive
+than any owned-class policy — never a denial. It applies to **caster/priest-only characters** while
+`Custom:MulticlassingEnabled=true`, not just to characters owning multiple classes; and because the
+sentinel is server-wide while the rule is on, single-class Clients are affected identically. **NPCs,
+Bots, and Mercs are not affected**: none use the sentinel; `Mob::GetClassesBits()` (`mob.cpp:4842-4853`)
+returns a real single-class bit for them (or 0 for non-player-class NPCs), so their tier selection is
+unchanged by any Client-scoped fix.
+
+**Caller asymmetry (adjacent, upstream-consistent — not B-1 multiclass defects).** Ordinary melee
+(`Mob::Attack`, `attack.cpp:1695`) caps **`base_damage`** only; Client-only archery
+(`CommonOutgoingHitSuccess`, `attack.cpp:6853-6871`, `IsClient()`-gated) caps the post-scaling
+**`damage_done`**; **throwing is not handled by this function**; NPC/pet/Bot ranged is uncapped (not a
+Client path). Retained as observations, not findings against the policy decision.
+
+**Policy table (NO selection made by this audit):**
+
+| Policy | Description | Precedent / category |
+|--------|-------------|----------------------|
+| Status quo (sentinel) | Every multiclass-enabled Client gets the `default` / global-highest cap; Client class tiers are effectively disabled | Current live behavior; requires no code. Permissive by construction. |
+| MIN (most restrictive) | Tightest cap among owned classes | `GetFactionLevel` / `GetModCharacterFactionLevel` worst-of; `GetSpellLevelForCaster` min-level. **Note:** these are requirement-ordering precedents, not cap-table precedents. |
+| MAX (least restrictive) | Highest cap among owned classes | Cap/progression precedent is substantial: `MaxSkill`, `CalcBaseHP`/`CalcBaseEndurance`, `Mob::GetACSoftcap`/`GetSoftcapReturns`, `CheckTripleAttack` (`17944113`). This is a **design convention, not a mechanically forced result**. |
+| Melee wins | Any `default`-group class owned → melee cap | `Mob::Attack:1721` `IsWarriorClass()` melee damage-bonus gate (any owned fighter class → melee bonus) via the multiclass-aware default (`mob.cpp:1180`). Coincident with MAX for every ownership containing a `default`-group class; distinguishable only for priest/caster-only ownership. |
+
+MAX-of-owned and melee-wins **coincide** except for priest/caster-only ownership. **Gameplay-balance
+note:** owned-class semantics is **not** a representation-only repair. Because sentinel behavior is
+today's global-highest tier, MAX-of-owned would *lower* low-level caps for pure caster/priest and
+caster-only characters (e.g., pure Wizard 14→10 at 10–19; pure Cleric 14→12); MIN-of-owned would lower
+them broadly. The choice is therefore a deliberate gameplay-balance decision, not a mechanically forced
+correction.
+
+Requires a project decision before any mechanical fix. Remains the top deferred item (§9).
 
 ### 6.2 B-6 — `MerchantRejectMessage` rejection text (OPEN — policy/design deferred; cosmetic-only; MEDIUM)
 
@@ -509,6 +559,11 @@ for the live split.
   cosmetic-only, verified 2026-09-28; merchant gates already multiclass-aware).
 - Faction **write-path** review (2026-09-28): **zero new source findings** — the mutation path is
   verified class-insensitive (see §5.3). No new rows added to the §4 matrix; §9 queue row removed.
+- B-1 reconciliation (2026-09-28, §6.1): the representation mismatch is real, but shipped-config
+  reachability is levels 1–19 (`Combat:LevelToStopDamageCaps` = 20) and current behavior is the globally
+  most permissive tier. The CRITICAL label is reconsidered to **LOW under the shipped config** (see
+  §6.1); the all-melee `< L70`-style scope claims exist only in the deprecated audit and are corrected
+  here. B-1 remains **unresolved** pending a policy decision.
 - Ledger hashes were re-verified against `git log` on `nms-development` on 2026-09-28. Do not trust the
   commit columns in older audit files (several were wrong).
 - Line numbers in this document are the current `nms-development` snapshot (2026-09-28) unless the §3
@@ -522,7 +577,7 @@ Ordered by (a) severity, (b) whether policy is decided.
 
 | # | Item | Ref | Blocker | Policy status |
 |---|------|-----|---------|---------------|
-| 1 | `DoDamageCaps` switch — multiclass chars get melee cap | B-1 (CRITICAL) | MIN/MAX/melee-wins choice | **Blocked** — no decision |
+| 1 | `DoDamageCaps` switch — multiclass chars get melee cap | B-1 (LOW, config-dependent) | Policy/design: status quo vs MIN vs MAX vs melee-wins (see §6.1) | **Blocked** — no decision |
 | 2 | END-OR-MANA latent representation bug | C-4 (MEDIUM) | Policy + no shipped data to validate against | **Blocked** — dormant; do-not-modify decision stands |
 | 3 | `MerchantRejectMessage` rejection text | B-6 (MEDIUM) | Product/UI choice: worst-modifier class, enumerate owned, neutral text, or sentinel | Open design question — cosmetic, non-gameplay |
 | 4 | Bots (full subsystem) | D series / out-of-scope | Bot subsystem deferred by project scope | Out of scope until project says otherwise |
