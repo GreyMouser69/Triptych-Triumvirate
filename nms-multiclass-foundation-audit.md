@@ -3,7 +3,7 @@
 **Repository:** Triptych Triumvirate / NMS (EQEmu 23.8.1 fork, RoF2 client)
 **Branch:** `nms-development`
 **Compiled by:** opencode agent synthesis (prior explore-agent passes + direct file verification)
-**Last updated:** 2026-09-28 (post-B-5 resolution; C-4 plate-user fixed in `2ce84053`; B-6 `MerchantRejectMessage` verified cosmetic-only — see §6.2; supersedes prior audit docs)
+**Last updated:** 2026-09-28 (post-B-5 resolution; C-4 plate-user fixed in `2ce84053`; B-6 `MerchantRejectMessage` verified cosmetic-only — see §6.2; faction write-path verified class-insensitive — see §5.3; supersedes prior audit docs)
 
 > **AUDIT ONLY — NO CODE MODIFICATIONS.** This document is the canonical historical record for the
 > multiclass foundation audit. It is documentation only and does not change any source.
@@ -109,6 +109,7 @@ multiclass-aware; with a non-zero `class_id` they test a single class. **Trap:**
 | Skill caps | **Best / max** qualifying owned class |
 | Spell required level | **Minimum** qualifying class level |
 | AA eligibility | Multiclass-aware (owned classes) |
+| Faction stored value | Raw accumulated personal faction relative to base; class/race/deity modifiers applied at effective-faction read time only |
 
 Exceptions that remain unresolved by policy are flagged in §6 (DoDamageCaps, END-OR-MANA proc
 conditions).
@@ -261,6 +262,63 @@ Batch 2 (`b1aa4b5d`):
 | **NPC-only default class bitmask** | `zone/special_attacks.cpp:2239` (in `NPC::DoClassAttacks`, 2231) | Verified correct (NPC path) | `class_bitmask` defaults to `GetPlayerClassBit(GetClass())` only for plain NPCs; the **Client** supplies swarm pets with the full `GetClassesBits()` at `client.cpp:8866`, and the Client override of DoClassAttacks is at `special_attacks.cpp:2416`. Not a multiclass path. |
 | **Meditate pool selection** | `zone/client_mods.cpp:688` | Verified correct | `if (GetClass() != Class::Bard \|\| RuleB(Custom, MulticlassingEnabled))` — Bard gains meditation only when multiclassing is on; the `GetClass()` sentinel here is **correctly used as the Bard-sentinel test** (single-class fallback for non-multiclass servers). `HasSkill(SkillMeditate)` gate at `client_mods.cpp:662`. |
 | **Merchant faction worst-of** | `GetModCharacterFactionLevel` | Fixed (`abc7826f`) | Worst-of over owned classes (must meet ANY faction check → the strictest owned class governs). |
+
+### 5.3 Faction write/mutation path — verified class-insensitive (CLOSED — no findings; 2026-09-28)
+
+End-to-end audit of the faction **mutation/write** path. **No multiclass write defect exists**; the
+write path is class-insensitive by construction. Verified conclusions:
+
+- **Stored-value invariant.** `faction_values.current_value` stores **raw accumulated personal faction
+  relative to faction base** (a missing row and a stored `0` both mean "at base level"). Default range
+  ±2000 (`common/features.h:208-209`), per-faction override via `faction_base_data`.
+- **Sole persistence leaf.** `ZoneDatabase::SetCharacterFactionLevel()` (`zonedb.cpp:3555`) is the only
+  writer of `faction_values` — `INSERT ... ON DUPLICATE KEY UPDATE` of the resulting **absolute** value.
+- **Delta in logic, absolute in persistence.** Mutation functions add a delta to the loaded raw value,
+  but the DB write stores the resulting absolute raw value; the in-memory `factionvalues` map is updated
+  in the same call (`zonedb.cpp:3576`).
+- **Single convergence point.** `SetFactionLevel()` (`client.cpp:9837`) and `SetFactionLevel2()`
+  (`client.cpp:9922`) both route through `Client::UpdatePersonalFaction()` (`client.cpp:9991`), which
+  applies Heroic CHA scaling, min/max clamp/repair, then writes.
+- **All gameplay sources share the same raw path.** NPC kills (legacy `HateList::DoFactionHits`
+  `hate_list.cpp:290`; merit path `attack.cpp:2812/2841/2871`), quests (`questmgr.cpp:1627, 1644`),
+  tasks (`task_client_state.cpp:1038`), Perl/Lua APIs (`perl_client.cpp:388/393/398`,
+  `lua_client.cpp:443/448`; content wrapper `lua_modules/client_ext.lua:1-4`), `RewardFaction()`
+  (`client.cpp:10735`) and its faction-association fan-out (`client.cpp:10811`).
+- **Class/race/deity are read-time modifiers only.** `CalculateFaction` (`common/faction.cpp:57`) adds
+  `base + class_mod + race_mod + deity_mod` when computing *effective* standing; none of these are ever
+  incorporated into the persisted raw value. `GetFactionData` (`zonedb.cpp:3461`) provides
+  class-independent `min`/`max`/`base` plus class-keyed `class_mod` — the mutation clamps consume
+  **only** `min`/`max`/`base`.
+- **Heroic CHA scales hit magnitude** (`client.cpp:9996-10008`) but is stat-based and unrelated to
+  multiclass class representation.
+- **Bard sentinel is inert on the write path.** The sentinel can reach the mutation path — it flows
+  through `GetClass()`/`GetBaseClass()` arguments (`SetFactionLevel2` re-sources `GetClass()` at
+  `client.cpp:9936`; callers pass `GetBaseClass()`), but the resulting `class_mod` is **not consumed by
+  the mutation calculation**, so it cannot change the delta, clamp, direction, or persisted value.
+- **Default/per-faction min/max clamps are class-independent.** On-write `faction_minimum`/
+  `faction_maximum` derive from `fm.min`/`fm.max`/`fm.base` only; no "can't improve/worsen beyond" logic
+  consumes the class.
+- **Bots/Mercs do not reach the Client faction writer.** Hate-list iteration filters `IsClient()`
+  (`hate_list.cpp:298-301`), the raid loop skips `m.is_bot` (`attack.cpp:2806-2808`), the group loop
+  filters `IsClient()`; no bot/merc faction writers exist.
+- **`abc7826f` scope respected.** It changed the effective/read path only
+  (`GetModCharacterFactionLevel`, worst-of-owned-class). It did not leave a corresponding mutation bug,
+  because the mutation path never consumes class data.
+
+**Preserved informational trap:** `SetFactionLevel2()` ignores its `char_class`, `char_race`, and
+`char_deity` parameters, re-sourcing `GetClass(), GetFactionRace(), GetDeity()` (`client.cpp:9936`).
+Behaviorally inert today; could matter if future code begins consuming class-specific modifiers during
+mutation.
+
+**Preserved informational content mirror:** `bazaar/Ambassador_Terratoe.pl:107-129` (`set_effective_factions`)
+reverse-engineers a delta from the multiclass-aware read `GetModCharacterFactionLevel` and applies it to
+the raw store via `SetFactionLevel2`, iterating up to 3 passes to absorb Heroic CHA scaling. **Not a
+multiclass defect.** Robustness caveat: convergence is heuristic (MEDIUM confidence on exact convergence).
+
+**Temporary-faction mechanics (reference):** `temp` is remapped 2→0 / 3→1 at write
+(`zonedb.cpp:3560-3564`); `temp=1` rows are purged on zone entry (`RemoveTempFactions` `zonedb.cpp:3429`,
+called at `client_packet.cpp:1402`); `SendFactionMessage` suppresses the message for `temp 1/2`
+(`client.cpp:10191`). Class-independent; does not affect the multiclass conclusion.
 
 ---
 
@@ -449,6 +507,8 @@ for the live split.
   as already correct** (B-3 NPC-only, B-5 display redundancy), **2 deferred/policy-blocked** (B-1
   `DoDamageCaps`, C-4 END-OR-MANA), **1 still open design question** (B-6 `MerchantRejectMessage` —
   cosmetic-only, verified 2026-09-28; merchant gates already multiclass-aware).
+- Faction **write-path** review (2026-09-28): **zero new source findings** — the mutation path is
+  verified class-insensitive (see §5.3). No new rows added to the §4 matrix; §9 queue row removed.
 - Ledger hashes were re-verified against `git log` on `nms-development` on 2026-09-28. Do not trust the
   commit columns in older audit files (several were wrong).
 - Line numbers in this document are the current `nms-development` snapshot (2026-09-28) unless the §3
@@ -465,10 +525,9 @@ Ordered by (a) severity, (b) whether policy is decided.
 | 1 | `DoDamageCaps` switch — multiclass chars get melee cap | B-1 (CRITICAL) | MIN/MAX/melee-wins choice | **Blocked** — no decision |
 | 2 | END-OR-MANA latent representation bug | C-4 (MEDIUM) | Policy + no shipped data to validate against | **Blocked** — dormant; do-not-modify decision stands |
 | 3 | `MerchantRejectMessage` rejection text | B-6 (MEDIUM) | Product/UI choice: worst-modifier class, enumerate owned, neutral text, or sentinel | Open design question — cosmetic, non-gameplay |
-| 4 | Faction **write-path** review | (adjacent) | Not yet itemized as a finding; listed for completeness when faction work resumes | Not started |
-| 5 | Bots (full subsystem) | D series / out-of-scope | Bot subsystem deferred by project scope | Out of scope until project says otherwise |
+| 4 | Bots (full subsystem) | D series / out-of-scope | Bot subsystem deferred by project scope | Out of scope until project says otherwise |
 
-**Hard stop conditions:** Do not begin item 2 or 4 until the B-1 policy decision is made. Do not modify
+**Hard stop conditions:** Do not begin item 2 until the B-1 policy decision is made. Do not modify
 dormant END-OR-MANA behavior. No source edits from this document are permitted until explicitly requested.
 
 ---
