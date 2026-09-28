@@ -3,7 +3,7 @@
 **Repository:** Triptych Triumvirate / NMS (EQEmu 23.8.1 fork, RoF2 client)
 **Branch:** `nms-development`
 **Compiled by:** opencode agent synthesis (prior explore-agent passes + direct file verification)
-**Last updated:** 2026-09-28 (post-B-5 resolution; supersedes prior audit docs)
+**Last updated:** 2026-09-28 (post-B-5 resolution; C-4 plate-user fixed in `2ce84053`; supersedes prior audit docs)
 
 > **AUDIT ONLY — NO CODE MODIFICATIONS.** This document is the canonical historical record for the
 > multiclass foundation audit. It is documentation only and does not change any source.
@@ -110,8 +110,8 @@ multiclass-aware; with a non-zero `class_id` they test a single class. **Trap:**
 | Spell required level | **Minimum** qualifying class level |
 | AA eligibility | Multiclass-aware (owned classes) |
 
-Exceptions that remain unresolved by policy are flagged in §6 (DoDamageCaps, plate-user/END-OR-MANA
-proc conditions).
+Exceptions that remain unresolved by policy are flagged in §6 (DoDamageCaps, END-OR-MANA proc
+conditions).
 
 ---
 
@@ -133,10 +133,12 @@ pre-fix snapshots where the commit is listed. **No hash in this ledger is inferr
 | `7d328cf4` | fix: sync multiclass berserker throwing tuning | `zone/tune.cpp` | Endurance/throwing tuning uses `!HasClass(Class::Berserker)` (companion to `92cfd33c`). |
 | `974cb171` | fix: make spell cast restrictions multiclass-aware | `zone/spell_effects.cpp` | PassCastRestriction, **5 cases** (first batch). Exact rewrites are reproduced in §5.1. Resolved **C-1, C-2, C-3**, and half of **C-4**. |
 | `b1aa4b5d` | fix: make additional cast restrictions multiclass-aware | `zone/spell_effects.cpp` | PassCastRestriction, **4 more cases** (second batch). Resolved the remaining **C-4** cast-restriction conditions. |
+| `2ce84053` | fix: make Jann class restrictions multiclass-aware | `zone/spell_effects.cpp` | PassCastRestriction plate-user Jann set, **4 cases**: `IS_CLIENT_AND_MALE/FEMALE_PLATE_USER` (11044/11210) replace `IsPlateClass(GetClass())` with `HasAnyClass({Warrior, Cleric, Paladin, ShadowKnight, Bard})`; `IS_CLEINT_AND_MALE/FEMALE_DRUID_ENCHANTER_MAGICIAN_NECROANCER_SHAMAN_OR_WIZARD` (11090/11211) replace `(IsCasterClass(GetClass()) && GetClass() != Class::Cleric)` with `HasAnyClass({Druid, Shaman, Necromancer, Wizard, Magician, Enchanter})`. `IsClient()` + gender gates preserved; non-Client behavior unchanged. Resolved the plate-user **C-4** set (§4/§6.3). |
 | `e647073d` | docs: add NMS development guidance | `AGENTS.md` | Documentation only; records the multiclass architecture. Not a code fix. |
 
-Combined, these commits close **every A/B-2/B-4/B-5, all C-1/C-2/C-3**, and the **cast-restriction C-4**
-occurrences. Remaining open items are in §6 and §9.
+Combined, these commits close **every A/B-2/B-4/B-5, all C-1/C-2/C-3**, the **cast-restriction C-4**
+occurrences, and the **plate-user C-4 (Jann/illusion) set** (`2ce84053`). Remaining open items are in
+§6 and §9.
 
 ---
 
@@ -174,7 +176,7 @@ occurrences. Remaining open items are in §6 and §9.
 | C-3 (HIGH) | `IS_CLASS_PURE_CASTER` | **FIXED** | `974cb171` → `HasAnyClass({Necromancer, Wizard, Magician, Enchanter})`. |
 | C-4 (HIGH) | `IS_CLASS_HYBRID_CLASS`, `IS_CLASS_CLR_SHM_DRU` | **FIXED** | `974cb171` → `HasAnyClass({Paladin, Ranger, ShadowKnight, Bard, Beastlord})` and `HasAnyClass({Cleric, Druid, Shaman})`. |
 | C-4 (HIGH) | `IS_CLASS_KNIGHT_HYBRID_MELEE`, `IS_CLASS_WARRIOR_CASTER_PRIEST`, `IS_CLASS_CASTER_PRIEST`, `IS_NOT_CLASS_BARD` | **FIXED** | `b1aa4b5d` — exact sets in §5.1. |
-| C-4 (HIGH) | **Plate-user** `IS_CLIENT_AND_MALE/FEMALE_PLATE_USER` + Druid-Enc-Mag-Nec-Shm-Wiz variants, `spell_effects.cpp:9009-9031` | **OPEN — deferred** | Still `IsPlateClass(GetClass())` → Bard sentinel → always `true`. See §6.3. |
+| C-4 (HIGH) | **Plate-user** `IS_CLIENT_AND_MALE/FEMALE_PLATE_USER` + `IS_CLEINT_AND_MALE/FEMALE_DRUID_ENCHANTER_MAGICIAN_NECROANCER_SHAMAN_OR_WIZARD`, `spell_effects.cpp:9009-9031` | **FIXED** | `2ce84053` → `HasAnyClass({Warrior, Cleric, Paladin, ShadowKnight, Bard})` / `HasAnyClass({Druid, Shaman, Necromancer, Wizard, Magician, Enchanter})`. See §6.3. |
 | C-4 (MEDIUM) | **END-OR-MANA** `IS_END_OR_MANA_ABOVE_20_PCT` (9077), `..._BELOW_10_PCT` (9086), `..._BELOW_30_PCT`/`_2` (9098-9099) | **DEFERRED — confirmed latent** | §6.4. |
 
 ### D, E, F — no-change categories
@@ -284,15 +286,29 @@ Requires a project decision before any mechanical fix. Remains the top deferred 
 client message. Cosmetic/UX only; does not affect whether rejection occurs. Which class to display
 (worst-qualifying owned class vs. primary) is an open design choice.
 
-### 6.3 C-4 plate-user remnant (OPEN — deferred; HIGH)
+### 6.3 C-4 plate-user Jann/illusion restrictions (FIXED — `2ce84053`)
 
-`zone/spell_effects.cpp:9009-9031`:
-- `IS_CLIENT_AND_MALE_PLATE_USER` (9009) — `IsPlateClass(GetClass())` → Bard sentinel → always `true`.
-- `IS_CLEINT_AND_MALE_DRUID_ENCHANTER_MAGICIAN_NECROANCER_SHAMAN_OR_WIZARD` (9014) — `IsCasterClass(GetClass()) && GetClass() != Class::Cleric` → always `false`.
-- `IS_CLIENT_AND_FEMALE_PLATE_USER` (9025) — same as 9009.
-- `IS_CLIENT_AND_FEMALE_DRUID_ENCHANTER_MAGICIAN_NECROANCER_SHAMAN_OR_WIZARD` (9030) — same as 9014.
+Former open finding at `zone/spell_effects.cpp:9009-9031`. Affected restriction IDs: **11044, 11090,
+11210, 11211** (male/female plate-user; male/female Druid-Enc-Mag-Nec-Shm-Wiz).
 
-These are client-target Jann/illusion spell conditions. Not yet converted to `HasAnyClass(...)` sets.
+Preserved findings:
+
+- **Class sets.** Plate (`IsPlateClass`): `{Warrior, Cleric, Paladin, ShadowKnight, Bard}`. Caster-without-Cleric
+  (the old `IsCasterClass(GetClass()) && GetClass() != Class::Cleric`): `{Druid, Shaman, Necromancer, Wizard, Magician, Enchanter}`.
+  The three Jann groups (plate 5 + caster 6 + melee 5) form the complete **16-class partition** per gender.
+- **Old Bard-sentinel behavior.** `GetClass()` = Bard (8): plate cases evaluated `IsPlateClass(8)=true` →
+  **fail-open** (every client passed the plate gate); caster cases evaluated `IsCasterClass(8)=false` →
+  **fail-closed** (Jann caster illusion always blocked for multiclass clients).
+- **Melee sibling cases** `IS_CLIENT_AND_MALE/FEMALE_BEASTLORD_BERSERKER_MONK_RANGER_ROGUE`
+  (9019/9035) were **already mask-aware** (`HasClass()`) and correct — the precedent for this fix.
+- **Dormancy.** The four restriction IDs were **dormant in shipped spell data** at audit time (no
+  `CastRestriction`, `caster_requirement_id`, or SPA-442/443 use). Dormancy meant *latent*, not *correct*;
+  the fix removes the latent representation bug.
+- **Fix.** `2ce84053` converts both sexes to `HasAnyClass(...)` union/any-owned semantics while preserving
+  the `IsClient() && gender` gates, `return true; break;`, and per-case independence (no case merging).
+- **Non-Client behavior unchanged.** `IsClient()` remains the first conjunct, so NPC/Bot/Merc targets still
+  short-circuit and fail the requirement exactly as before.
+
 The message-mirror (second switch) at `spell_effects.cpp:10227-10244` prints the rejection strings for the
 same IDs and has no class logic — unaffected by this finding.
 
@@ -329,9 +345,10 @@ Accumulated findings:
 
 ### 6.5 Other C-4 remnants (historical)
 
-The old audit’s C-4 spreadsheet row also referenced `IS_END_OR_MANA_*` and the plate-user set above; the
-big `calc` rows for `IS_CLASS_KNIGHT_HYBRID_MELEE`, `IS_CLASS_WARRIOR_CASTER_PRIEST`, and
-`IS_CLASS_CASTER_PRIEST` were fixed by `b1aa4b5d`. See §4 matrix for the live split.
+The old audit’s C-4 spreadsheet row also referenced `IS_END_OR_MANA_*` and the plate-user set (now fixed
+by `2ce84053`, §4/§6.3); the big `calc` rows for `IS_CLASS_KNIGHT_HYBRID_MELEE`,
+`IS_CLASS_WARRIOR_CASTER_PRIEST`, and `IS_CLASS_CASTER_PRIEST` were fixed by `b1aa4b5d`. See §4 matrix
+for the live split.
 
 ### 6.6 Out of scope (deliberately not audited for fixes)
 
@@ -384,8 +401,11 @@ big `calc` rows for `IS_CLASS_KNIGHT_HYBRID_MELEE`, `IS_CLASS_WARRIOR_CASTER_PRI
 ## 8. Reconciliation Notes
 
 - The opening count in §1 (36 this session + 164 carried; A=3/B=6/C=4/D=14/E=9/F=12) is the historical
-  tally. The live status in §4 supersedes it: 10 of the 13 A/B/C rows are fixed, 2 are deferred/policy-
-  blocked, B-3 and B-5 are closed/reclassified as correct.
+  tally. The live status in §4 supersedes it. Counting the A/B/C rows listed in the §4 matrix (16 rows;
+  C-4 spans multiple rows): **11 fixed** (A-1/2/3, B-2, B-4, C-1/2/3, C-4 hybrid+clr-shm-dru, C-4
+  knight-hybrid/warrior-caster-priest/caster-priest/not-bard, C-4 plate-user), **2 closed/reclassified
+  as already correct** (B-3 NPC-only, B-5 display redundancy), **2 deferred/policy-blocked** (B-1
+  `DoDamageCaps`, C-4 END-OR-MANA), **1 still open design question** (B-6 `MerchantRejectMessage`).
 - Ledger hashes were re-verified against `git log` on `nms-development` on 2026-09-28. Do not trust the
   commit columns in older audit files (several were wrong).
 - Line numbers in this document are the current `nms-development` snapshot (2026-09-28) unless the §3
@@ -400,15 +420,13 @@ Ordered by (a) severity, (b) whether policy is decided.
 | # | Item | Ref | Blocker | Policy status |
 |---|------|-----|---------|---------------|
 | 1 | `DoDamageCaps` switch — multiclass chars get melee cap | B-1 (CRITICAL) | MIN/MAX/melee-wins choice | **Blocked** — no decision |
-| 2 | Plate-user proc conditions (Jann/illusion) | C-4 (HIGH) | Should be convertible to `HasAnyClass(...)`; touchstone for §6.4 policy | Fix-ready once B-1 policy ratified |
-| 3 | END-OR-MANA latent representation bug | C-4 (MEDIUM) | Policy + no shipped data to validate against | **Blocked** — dormant; do-not-modify decision stands |
-| 4 | `MerchantRejectMessage` class display | B-6 (MEDIUM) | Which class to display | Open design question |
-| 5 | Faction **write-path** review | (adjacent) | Not yet itemized as a finding; listed for completeness when faction work resumes | Not started |
-| 6 | Bots (full subsystem) | D series / out-of-scope | Bot subsystem deferred by project scope | Out of scope until project says otherwise |
+| 2 | END-OR-MANA latent representation bug | C-4 (MEDIUM) | Policy + no shipped data to validate against | **Blocked** — dormant; do-not-modify decision stands |
+| 3 | `MerchantRejectMessage` class display | B-6 (MEDIUM) | Which class to display | Open design question |
+| 4 | Faction **write-path** review | (adjacent) | Not yet itemized as a finding; listed for completeness when faction work resumes | Not started |
+| 5 | Bots (full subsystem) | D series / out-of-scope | Bot subsystem deferred by project scope | Out of scope until project says otherwise |
 
-**Hard stop conditions:** Do not begin item 2, 3, or 5 until the B-1 policy decision is made. Do not
-modify dormant END-OR-MANA behavior. No source edits from this document are permitted until explicitly
-requested.
+**Hard stop conditions:** Do not begin item 2 or 4 until the B-1 policy decision is made. Do not modify
+dormant END-OR-MANA behavior. No source edits from this document are permitted until explicitly requested.
 
 ---
 
