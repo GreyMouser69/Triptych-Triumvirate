@@ -1356,13 +1356,12 @@ int64 Mob::GetWeaponDamage(Mob *against, const EQ::ItemInstance *weapon_item, in
 	return std::max((int64)0, dmg);
 }
 
-int64 Mob::DoDamageCaps(int64 base_damage)
+// Per-class damage-cap table from the original client-derived formula. Evaluated once
+// per owned class so a multiclassed client takes the highest cap it actually owns.
+// class_id 0 (Class::None) exercises the default tier and preserves the legacy result
+// for entities with no owned playable class.
+static int DoDamageCapByClass(uint8 class_id, uint8 level)
 {
-	// this is based on a client function that caps melee base_damage
-	auto level = GetLevel();
-	auto stop_level = RuleI(Combat, LevelToStopDamageCaps);
-	if (stop_level && stop_level <= level)
-		return base_damage;
 	int cap = 0;
 	if (level >= 125) {
 		cap = 7 * level;
@@ -1377,7 +1376,7 @@ int64 Mob::DoDamageCaps(int64 base_damage)
 		cap = 4 * level;
 	}
 	else if (level >= 40) {
-		switch (GetClass()) {
+		switch (class_id) {
 		case Class::Cleric:
 		case Class::Druid:
 		case Class::Shaman:
@@ -1395,7 +1394,7 @@ int64 Mob::DoDamageCaps(int64 base_damage)
 		}
 	}
 	else if (level >= 30) {
-		switch (GetClass()) {
+		switch (class_id) {
 		case Class::Cleric:
 		case Class::Druid:
 		case Class::Shaman:
@@ -1413,7 +1412,7 @@ int64 Mob::DoDamageCaps(int64 base_damage)
 		}
 	}
 	else if (level >= 20) {
-		switch (GetClass()) {
+		switch (class_id) {
 		case Class::Cleric:
 		case Class::Druid:
 		case Class::Shaman:
@@ -1431,7 +1430,7 @@ int64 Mob::DoDamageCaps(int64 base_damage)
 		}
 	}
 	else if (level >= 10) {
-		switch (GetClass()) {
+		switch (class_id) {
 		case Class::Cleric:
 		case Class::Druid:
 		case Class::Shaman:
@@ -1449,7 +1448,7 @@ int64 Mob::DoDamageCaps(int64 base_damage)
 		}
 	}
 	else {
-		switch (GetClass()) {
+		switch (class_id) {
 		case Class::Cleric:
 		case Class::Druid:
 		case Class::Shaman:
@@ -1465,6 +1464,33 @@ int64 Mob::DoDamageCaps(int64 base_damage)
 			cap = 10; // this is where the 20 damage cap comes from
 			break;
 		}
+	}
+	return cap;
+}
+
+int64 Mob::DoDamageCaps(int64 base_damage)
+{
+	// this is based on a client function that caps melee base_damage
+	auto level = GetLevel();
+	auto stop_level = RuleI(Combat, LevelToStopDamageCaps);
+	if (stop_level && stop_level <= level)
+		return base_damage;
+
+	// A multiclassed client owns several classes that yield different cap tiers; take
+	// the highest cap belonging to a class the entity actually owns. GetClassesBits()
+	// resolves to a single real class for every other mob, preserving prior results.
+	int cap = 0;
+	const uint32 classes_bits = GetClassesBits();
+	for (int i = Class::Warrior; i <= Class::Berserker; i++) {
+		if (HasClass(i, classes_bits)) {
+			cap = std::max(cap, DoDamageCapByClass(i, level));
+		}
+	}
+
+	// No owned playable class produced a cap (only possible for a non-player entity):
+	// fall back to the legacy default-tier result rather than uncapping to 0.
+	if (cap == 0) {
+		cap = DoDamageCapByClass(0, level);
 	}
 
 	return std::min((int64)cap, base_damage);
