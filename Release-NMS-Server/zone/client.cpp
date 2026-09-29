@@ -3113,6 +3113,9 @@ void Client::UpdateWho(uint8 remove)
 	s->race        = GetRace();
 	s->class_      = GetClass();
 	s->level       = GetLevel();
+	// NMS: publish the owned-class mask separately. class_ is the multiclassing
+	// Bard sentinel and is not a usable filter key; see ZoneWho / WhoHasClass.
+	s->classes_bits = GetClassesBits();
 
 	if (m_pp.anon == 0) {
 		s->anon = 0;
@@ -14649,6 +14652,9 @@ bool Client::AddExtraClass(int class_id) {
 			}
 		}
 
+		// NMS: owned classes changed, so republish the client list. Reached only on
+		// the success path; both failure returns above bypass it.
+		UpdateWho();
 		return true;
 	}
 	return false;
@@ -14755,6 +14761,9 @@ bool Client::RemoveExtraClass(int class_id) {
     SaveCurrency();
     Save();
 
+    // NMS: owned classes changed, so republish the client list. Reached only on
+    // the success path; both validation returns above bypass it.
+    UpdateWho();
     return true;
 }
 
