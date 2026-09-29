@@ -5,7 +5,10 @@
 **Compiled by:** opencode agent synthesis (prior explore-agent passes + direct file verification)
 **Last updated:** 2026-09-29 (Sweep-2 reconciliation: S-08 FIXED in `f01b999a`; S-07 FIXED in `a845bbfd`; S-06 FIXED in `d40a68f2`; S-03 FIXED in `036c2177`; S-02 CLOSED verified-correct / false positive; S-04/S-05 FIXED in `9ca593f8` — see §4.2. S-09 `/setstartcity` forensically resolved as a **confirmed defect requiring an explicit
 policy decision** — it remains **OPEN**, has **no source change and no commit**, and the earlier
-"mechanical" classification is **superseded**. Prior 2026-09-28: B-1 `DoDamageCaps` fixed in `9ba735e2` §6.1; C-4 plate-user fixed in `2ce84053`; B-5 already-correct §4.1; B-6 cosmetic-only §6.2; faction write-path class-insensitive §5.3)
+"mechanical" classification is **superseded**. S-10 SK/Paladin ability refresh forensically resolved as
+**D (DORMANT)** — the site is reachable and its value genuinely computed, but the RoF2 profile encoder
+never publishes it; **no source change, no commit**, and it is retained as a documented latent defect, not
+correct-as-is (§4.2/§4.3). Prior 2026-09-28: B-1 `DoDamageCaps` fixed in `9ba735e2` §6.1; C-4 plate-user fixed in `2ce84053`; B-5 already-correct §4.1; B-6 cosmetic-only §6.2; faction write-path class-insensitive §5.3)
 
 > **AUDIT ONLY — NO CODE MODIFICATIONS.** This document is the canonical historical record for the
 > multiclass foundation audit. It is documentation only and does not change any source.
@@ -59,7 +62,7 @@ caps, combat eligibility checks, AA eligibility) plus every class-bearing proc c
 | # | Invariant |
 |---|-----------|
 | I-1 | A **class ID** is never a class **bitmask**. The two representations are unrelated. |
-| I-2 | When multiclassing is enabled, `m_pp.class_` is forced to `Class::Bard` (8) by world login (`world/client.cpp:1990`) and mirrored into zone (`client_packet.cpp:1549`). **In any Client gameplay path, `GetClass()`/`GetBaseClass()` return the Bard sentinel (8), not an owned class.** |
+| I-2 | When multiclassing is enabled, `m_pp.class_` is assigned `Class::Bard` (8) at **character creation** (`world/client.cpp:1990`) and **persisted to `character_data.class`**; zone reads that stored value back and **copies** it into the live Mob field (`class_ = m_pp.class_`, `client_packet.cpp:1549`). `GetClass()`/`GetBaseClass()` therefore **observe** the sentinel because Bard **is** the stored class value for that character — this is persistence, not call-time substitution, and no zone code forces Bard. The sentinel's reachability is scoped by **character creation provenance**: a pre-existing character may retain a real class (mechanism, §7.2). Owned classes live separately in `m_pp.classes` (I-3). |
 | I-3 | The source of truth for owned classes is `m_pp.classes`, a bitmask. Read it via `Client::GetClassesBits()` (`zone/client.cpp:14576`). |
 | I-4 | `Mob::HasClass(class_id)` is mask-aware: `(GetPlayerClassBit(class_id) & GetClassesBits()) != 0` (`zone/mob.cpp:4855`). Prefer this over raw comparisons. |
 | I-5 | Class bitmask values are explicit: `player_class_bitmasks[]` in `common/classes.h:79-96`, via `GetPlayerClassBit()` (`common/classes.cpp:395`). Warner on the server side: `1u << (class_id-1)`. |
@@ -72,7 +75,7 @@ caps, combat eligibility checks, AA eligibility) plus every class-bearing proc c
 
 | Symbol | File | Purpose |
 |--------|------|---------|
-| `m_pp.class_` | `world/client.cpp:1990` | Legacy single-class field; forced to Bard sentinel. Do not treat as owned-class in Client gameplay logic. |
+| `m_pp.class_` | `world/client.cpp:1990` | Legacy single-class field; assigned the Bard sentinel at character creation and persisted (§7.2). Do not treat as owned-class in Client gameplay logic. |
 | `m_pp.classes` | `common/player_profile.h` | Owned-class bitmask — the source of truth. |
 | `Client::GetClassesBits()` | `zone/client.cpp:14576` | Returns `m_pp.classes` (single-class fallback when multiclassing off). |
 | `Mob::GetClassesBits()` | `zone/mob.cpp:4842` | Delegates to `CastToClient()->GetClassesBits()` for clients. |
@@ -154,7 +157,7 @@ lookups (S-04/S-05, `9ca593f8`), the Sweep-2 trainer new-skill lookup (S-03, `03
 `IsEquipable` class-argument repair (S-07, `a845bbfd`), the `MaxSkills` restoration (S-06, `d40a68f2`), and the
 `/who` class-filter repair across all five filter predicates (S-08, `f01b999a`). S-02 is
 CLOSED verified-correct with no source change (§4.2). Remaining open items are in §6, §4.2
-(S-01, S-09, S-10), and §9.
+(S-01, S-09), and §9.
 
 ---
 
@@ -253,7 +256,110 @@ the §4 A/B/C/D/E/F matrix are unchanged.
 | S-08 | `zone/entity.cpp:4885-4890` (`who_class_match` lambda) + `:4901` / `:4967` (`EntityList::ZoneWho` count + emit passes); `world/clientlist.cpp:553-559` (`WhoHasClass` helper) + `:623` / `:721` (`ClientList::SendWhoAll` count + emit) + `:1160` (`ClientList::ConsoleSendWhoAll`); transport/storage support in `common/servertalk.h:604`, `zone/client.cpp:3114-3118`, `world/cliententry.h:88,149`, `world/cliententry.cpp:196,256` | **FIXED** — `f01b999a` | **Root defect:** all five `/who` class-filter predicates compared the requested class against `class_` / `GetClass()`, which yields the **Bard sentinel** when multiclassing is enabled — so filtering tested the sentinel instead of owned-class membership. **Transport:** world-side filtering could not be repaired from the existing payload, which carried only `uint8 class_`; `uint32 classes_bits` was **appended to the end** of `ServerClientList_Struct` (old 238 → **242** bytes, field at **offset 238**; all prior packed offsets unchanged, no field reordered). The receiver already validates with `sizeof(ServerClientList_Struct)`; zone and world were rebuilt from the same header. `Client::UpdateWho` now publishes **both** `s->class_ = GetClass()` (deliberately retained for legacy/display consumers) and `s->classes_bits = GetClassesBits()`. **World storage:** `ClientListEntry::m_classes_bits` + `classes_bits()`, set from `scl->classes_bits` in `Update` and zeroed in `ClearVars`. **Zone semantics:** one shared `who_class_match` lambda serves both passes, so the count and emit passes cannot diverge and desynchronise `Entries`/`PacketLength` from the emitted records; it **range-checks the full-width `wclass` before `static_cast<uint8>`**, accepts only `Class::Warrior`..`Class::Berserker`, then calls `HasClass(...)`; no `GetClass()` equality, no manual bit shift. **World/console semantics:** one shared `WhoHasClass` helper serves all three sites, range-checking the full-width `uint16` before narrowing and then testing `GetPlayerClassBit(class ID) & cle.classes_bits()`. **Sentinels preserved:** `0xFFFFFFFF` (zone) and `0xFFFF` (world/console) no-class-filter sentinels unchanged; `SendWhoAll` anon/admin predicates unchanged; `ConsoleSendWhoAll` keeps its prior visibility behavior. **Invalid-filter safety:** because the range check precedes narrowing, class `0`, class `17+`, and out-of-range values such as `257` match no class-specific filter instead of aliasing onto a real class ID. **Zero mask:** `classes_bits == 0` matches **no** class-specific filter (unfiltered `/who` unaffected); S-08 deliberately adds **no** fallback to Bard, `GetClass()`, or a guessed base class. **Semantics restored: ANY-owned / union** membership — single-class behavior preserved for all 16 playable classes via `GetPlayerClassBit(class ID)`; Warrior+Wizard matches Warrior and Wizard, Cleric+Wizard matches Cleric and Wizard, and so on. **Online class-mutation refresh:** because world filtering now depends on the transported mask, success-path `UpdateWho()` calls were added to `Client::AddExtraClass` and `Client::RemoveExtraClass` so world `/who` state cannot remain stale after an online class change; every `return false` / no-op path still returns before mutation, `m_pp.classes` is assigned and `SetBucket` called first, and no later observable persistence failure or rollback precedes `return true`. **Verification:** `git diff --check` clean; full Release build successful (`world.exe` and `zone.exe` linked, all nine configured binaries rebuilt); a throwaway `cl.exe` probe against the real header confirmed `sizeof = 242` / `offsetof = 238`; only pre-existing unrelated MSVC `C4244` warnings. **No live in-game verification was performed** — no running environment was available. **Console class FILTERING is fixed; console multiclass class DISPLAY is not** (see the adjacent residual note below). **Adjacent findings deliberately excluded from `f01b999a`, all still unresolved and not to be read as fixed:** (1) **LFG class-mask/sentinel behavior** in `world/clientlist.cpp` — the existing `1 << CLE->class_()` sites and the response publication `Buffer->Class_ = CLE->class_()` are unchanged; (2) **console multiclass display** still renders through the sentinel-backed `GetClassIDName(cle->class_(), ...)` path, so a multiclass character may still print as **BRD** in console output even though filtering is now mask-aware; (3) **missing `GestaltClasses` data-bucket fallback/migration** — no migration was added, so a character whose bucket is absent or unparsable still has `classes_bits == 0` and matches no class-specific filter. These three were discovered while closing S-08 and were deliberately left out of the commit; they have not been promoted into independently approved implementation items. |
 | S-01 | Resist final bonuses (`zone/client_mods.cpp`: `CalcMR` 1088 already mask-aware; `CalcFR` 1161, `CalcDR` 1247, `CalcPR` 1339, `CalcCR` 1431 sentinel-gated) | **OPEN — policy required (MAX vs SUM)** | Disposition unchanged; not part of `9ca593f8`. See §9. |
 | S-09 | `zone/client_packet.cpp:13743` (`Handle_OP_SetStartCity` start-zone validation query) and `:13790` (start-city listing query) | **OPEN — policy required** (forensically resolved 2026-09-29; **confirmed defect; NO source change, NO commit**) | **Root defect:** both sites pass `m_pp.class_` as `start_zones.player_class`; with `Custom:MulticlassingEnabled` that field is the **Bard sentinel** (8, installed at `world/client.cpp:1990`), so `/setstartcity` validates and lists against Bard's `start_zones` rows instead of the character's owned classes. The handler is byte-identical to `upstream/main`; NMS's imported sentinel invalidated the upstream single-class assumption. **Affected set (corrected wording):** *semantically* every multiclassed character whose owned-class set differs from `{Bard}`; *observationally* wrong in shipped data for **1,666 of 4,352** `(race, deity, class)` groups (**38.3%**) across the 4,423 shipped `start_zones` rows, of which **25** are hard-denial cases where the character's real class has an additional legitimate city that is never offered. **Bard-only is the sole self-consistent sentinel case; multiclassing-off servers are unaffected.** `start_zones.player_class` takes a single class ID (PK `player_choice, player_race, player_class, player_deity`) — the class **bitmask must never be passed here**. **Creation-time resolution is not this defect:** `world/client.cpp:2055` → `world/worlddb.cpp:586-641` correctly queries `start_zones` with the genuine `p_char_create_struct->class_`, because the creation profile still holds the real selected class. **No mechanical repair exists.** (a) *Any / union-of-owned-class* semantics contradict explicit NMS content: custom migration **v77** `2026_09_25_shar_vahl_druids` deliberately relocates class-6 Druids of races 6/9/10/128 away from their racial home cities to Shar Vahl (155) — in `start_zones` (v77) and in `char_create_combinations` (v78 `2026_09_25_shar_vahl_druid_create_combos`) — to break death-loops, so a union lookup would silently reintroduce Neriak Commons / Grobb / Oggok / Cabilis West whenever such a Druid owns a second applicable class, weakening a live gameplay customization. (b) *Designated / original class* is **not reconstructible**: `cc->class_` is creation-transient, `m_pp.class_` is overwritten with the Bard sentinel, the selected class survives only inside the unordered `m_pp.classes` / `GestaltClasses` bitmask, **no original/base/primary-class field is persisted anywhere**, and `AddExtraClass`/`RemoveExtraClass` store no ordering or privileged bit while `RemoveExtraClass` can remove the creation class outright — so it would require new persistent state plus a legacy-character backfill policy. **Policy gap:** `start_zones` is a character-**creation** `(race, class, deity)` mapping, and the repository defines **no** post-creation multiclass rule translating that creation-time key into `/setstartcity` eligibility; upstream documentation describes `start_zones` as a per race/class/deity creation mapping, not a persistent origin identity. **Disposition:** confirmed defect, blocker = **explicit policy decision**. This row **selects no implementation semantics** — union, designated class, and any comment-derived variant are all undecided. See §9. |
-| S-10 | SK/Paladin ability refresh | **OPEN — not yet resolved** | Disposition unchanged. No forensic pass, no source change, no commit. See §9. |
+| S-10 | `zone/client_packet.cpp:1790-1801` (`Client::Handle_Connect_OP_ZoneEntry`, SK/Paladin ability refresh; registered `client_packet.cpp:123`) | **RESOLVED — D (DORMANT); no source change, no commit** | Site is **reachable** and the value is **genuinely computed** from persisted PTimer state (`p_timers.Load` at `1780-1783`; `pTimerLayHands = 87`, `pTimerHarmTouch = 89`; table `timers`, `common/ptimer.cpp:74`), but the class test underneath is **multiclass-blind** (legacy single-class `m_pp.class_`, not owned-class membership). **DORMANT:** the RoF2 profile encoder never serializes `m_pp.abilitySlotRefresh` — `common/patches/rof2.cpp:2759` hardcodes the historical HT/LoH refresh field to `0` (`// also refresh -- historically HT/LoH :P`); only the UF/SoF/SoD/Titanium encoders consume the field (`uf.cpp:1872`, `sof.cpp:1109`, `sod.cpp:1442`, `titanium.cpp:1362`) and NMS ships a RoF2 client. **No observable shipped-client behavior to repair** — retained as a **documented latent defect, not correct-as-is**. Provenance: inherited verbatim from `upstream/main` (`client_packet.cpp` blob `a6423db6` and `rof2.cpp` blob `cf96cd4b` are byte-identical to Triptych HEAD). Security/data-integrity: **none** (cosmetic cooldown publication only). **Revisit trigger:** if the deployed client ever begins consuming `abilitySlotRefresh`, or a legacy client using that field becomes supported, this latent code requires a **fresh forensic/design pass** before activation or repair. No BOTH-owned policy is selected (irrelevant while dormant). Full record: **§4.3**. |
+
+### 4.3 S-10 — FINAL DISPOSITION (D — dormant; RoF2 never publishes the value)
+
+**Verdict: D — DORMANT. Reachable and computed, but its result is never published to the deployed
+client. No source repair under the shipped RoF2 configuration. Not FIXED, and explicitly not
+correct-as-is.** Recorded as a documented latent defect, with a revisit trigger.
+
+**Exact site.** `zone/client_packet.cpp:1790-1801`, inside `Client::Handle_Connect_OP_ZoneEntry`
+(`client_packet.cpp:1351`), registered as `ConnectingOpcodes[OP_ZoneEntry]` at
+`client_packet.cpp:123` — the normal login/zone-entry path, so the site is genuinely live.
+
+```cpp
+/* Ability slot refresh send SK/PAL */
+if (m_pp.class_ == Class::ShadowKnight || m_pp.class_ == Class::Paladin) {
+    uint32 abilitynum = 0;
+    if (m_pp.class_ == Class::ShadowKnight) { abilitynum = pTimerHarmTouch; }
+    else { abilitynum = pTimerLayHands; }
+
+    uint32 remaining = p_timers.GetRemainingTime(abilitynum);
+    if (remaining > 0 && remaining < 15300)
+        m_pp.abilitySlotRefresh = remaining * 1000;
+    else
+        m_pp.abilitySlotRefresh = 0;
+}
+```
+
+**Timer state is real and persisted.** `p_timers.SetCharID` / `p_timers.Load` at `client_packet.cpp:1780-1783`
+immediately precede the block, so the value derives from the persisted `timers` table
+(`common/ptimer.cpp:74`). Constants: `pTimerLayHands = 87`, `pTimerHarmTouch = 89`
+(`common/ptimer.h:57-58`, "used by client too — don't change"). The computation itself is correct for
+the single-class case it was written for.
+
+#### Two independent suppression gates
+
+**Gate A — the value is never transmitted to the deployed client. This gate alone is sufficient for the
+DORMANT classification.** The complete occurrence set for `abilitySlotRefresh` is 14 sites: two
+server-side writes (both here, `:1798`/`:1800`), the profile struct declarations, and four encoders that
+consume it — `uf.cpp:1872`, `sof.cpp:1109`, `sod.cpp:1442`, `titanium.cpp:1362` (all `OUT(abilitySlotRefresh)`).
+**RoF and RoF2 do not consume it at all.** In the RoF2 character-profile encoder, immediately after the
+13 spell-gem refresh writes, `common/patches/rof2.cpp:2759` hardcodes the field:
+
+```cpp
+outapp->WriteUInt32(13);					// gem refresh counts
+for (uint32 r = 0; r < spells::SPELL_GEM_COUNT; r++)
+    outapp->WriteUInt32(emu->spellSlotRefresh[r]);			// spell gem refresh
+outapp->WriteUInt32(0);			// also refresh -- historically HT/LoH :P
+```
+
+The field is also runtime-only — no repository or SQL column persists it, so nothing can reintroduce a
+real value on a later login. With the deployed RoF2 client, no character configuration produces an
+observable difference.
+
+**Gate B — for characters created under multiclassing, the block does not execute anyway.** This is
+*additional* evidence and is **not** required to prove dormancy. `world/client.cpp:1990` assigns the Bard
+sentinel to `pp.class_` at character creation, which is persisted to `character_data.class`
+(`world/client.cpp:2656` → `common/database.cpp:453`) and read back by zone
+(`zone/zonedb.cpp:477`, copied to the live Mob field at `client_packet.cpp:1549` — see §7.2).
+`Custom:MulticlassingEnabled` defaults `true` (`common/ruletypes.h:1200`) with no override, so the
+Paladin/ShadowKnight equality test fails for such characters. Per §7.2 this is scoped by creation
+provenance: a pre-existing character whose row still holds a real class would execute the block, which is
+why Gate A carries the classification.
+
+#### Behavior summary
+
+Multiclassing off (SK or Paladin) and multiclassing on (legacy row with a real class) both compute a
+value; both are unobservable on RoF2. Multiclassing on for characters created under it never executes
+the block. A `BOTH`-owned character could only ever be given **one** of the two timers. No shipped-client
+behavior is wrong in any of these states.
+
+#### Five preserved latent defects
+
+1. **Multiclass-blind class test.** The block tests the legacy single-class `m_pp.class_` rather than
+   owned-class membership. The correct idiom already exists in the same file at `client_packet.cpp:4850,4858`
+   (`HasClass(Class::Paladin)` / `HasClass(Class::ShadowKnight)`), and `m_pp.classes` is already loaded
+   before this point (`Client::CompleteConnect`, `client_packet.cpp:654-655`).
+2. **BOTH-owned cannot be represented.** A single `m_pp.abilitySlotRefresh` field plus the existing
+   `if/else` cannot express two independent Paladin and Shadowknight timers. **No policy is selected here**
+   — the question is irrelevant while the publication path is dormant.
+3. **Hardcoded legacy ceiling.** `remaining < 15300` is a legacy magic bound unrelated to the current
+   `HarmTouchReuseTime` / `LayOnHandsReuseTime`, both `4300` ms (`zone/features.h:141-142`).
+4. **Asymmetric death reset.** `zone/attack.cpp:2238-2240` clears `pTimerLayHands` on death for a
+   Paladin; `pTimerHarmTouch` is never equivalently cleared anywhere (`client_packet.cpp:4870` starts it;
+   no `Clear` exists), so Harm Touch persists across death while LoH does not.
+5. **Execution path is already correct.** Ability *execution* is mask-aware and uses independent timers
+   87/89 (`client_packet.cpp:4845-4870`). This finding concerns the **legacy client refresh publication
+   path only**, not ability execution.
+
+#### Provenance, scope, and disposition
+
+Inherited **verbatim from `upstream/main`** — `client_packet.cpp` blob `a6423db6` and `rof2.cpp` blob
+`cf96cd4b` are byte-identical to Triptych HEAD; `git log -S` places the block in the initial import
+`fedaa3c5`. Not introduced by current NMS work; the multiclass feature only made an inherited latent
+defect unreachable. The only `m_pp.class_ ==` comparisons in the entire tree are `client_packet.cpp:1791`
+and `:1793`, so S-10 has no sibling sites of this pattern. **No DB dependency** (timer IDs and reuse
+times are constants; no `Custom:*` rule gates the block; shipped `release-peq.zip` spell data is
+irrelevant to the classification). **Security and data-integrity: none** — cosmetic client cooldown
+publication, no auth or trust-boundary surface.
+
+**Disposition: no source repair under shipped RoF2 behavior; no commit; no §3 ledger row.**
+
+**Revisit trigger.** If client support changes such that the deployed client begins consuming
+`abilitySlotRefresh`, or a legacy client using that field becomes supported, this latent code must
+receive a **fresh forensic/design pass** before being activated or repaired.
 
 ---
 
@@ -601,8 +707,10 @@ for the live split.
 
 ### 7.1 Traps (verified pitfalls repeated across audits)
 
-- **`GetClass()` is the Bard sentinel in all Client gameplay paths when multiclassing is on.** Treat any
-  reading of it as suspect; prefer `HasClass()` / `GetClassesBits()`.
+- **`GetClass()` reflects the persisted legacy class field.** Characters created while multiclassing is
+  enabled persist the Bard sentinel there; pre-existing characters may retain a real class. Do not use
+  `GetClass()` as owned-class identity in multiclass-aware Client gameplay paths — prefer `HasClass()` /
+  `GetClassesBits()` (sentinel persistence and provenance: §7.2).
 - **Class ID ≠ class bitmask.** `GetPlayerClassBit(12)` = 2048, not 12. Passing a raw ID where a mask is
   expected (or vice versa) is a bug. Same truth in reverse: `player_class_bitmasks[]` values
   (`1u << (class_id - 1)`) are not class IDs.
@@ -637,6 +745,26 @@ for the live split.
 - **`GetSpellLevelForCaster` location.** §5.2 previously pinned it to `zone/spells.cpp`; the current
   definition is `zone/spell_effects.cpp:5906-5919` (introduced by `70ad9f2c` in `spells.cpp`, later
   relocated). Use the location in §5.2 going forward.
+- **`GetClass()` Bard-sentinel mechanism (refines I-2 / §2.2 / §7.1).** Under
+  `Custom:MulticlassingEnabled` the sentinel is **not** a live zone-side substitution.
+  `world/client.cpp:1990` assigns `pp.class_ = Class::Bard` **during character creation**
+  (`Client::OPCharCreate`), and that profile is persisted to `character_data.class` via
+  `Database::SaveCharacterCreate` (`world/client.cpp:2656` → `common/database.cpp:453`). The zone
+  process reads that stored value back unchanged (`ZoneDatabase::LoadCharacterData`,
+  `zone/zonedb.cpp:477`) and **copies** it into the live Mob field (`class_ = m_pp.class_`,
+  `zone/client_packet.cpp:1549`). `GetClass()` therefore **observes** Bard because Bard *is* the
+  persisted class value for that character — not because `GetClass()` substitutes it at call time.
+  No zone-side code forces Bard (verified: zero `class_ = Class::Bard` writes anywhere under
+  `zone/`). Owned classes are stored and loaded **separately** via the classes bitmask:
+  `m_pp.classes` from the `GestaltClasses` data bucket (`Client::CompleteConnect`,
+  `zone/client_packet.cpp:654-655`; written by `AddExtraClass`/`RemoveExtraClass`,
+  `zone/client.cpp:14644,14693`; `common/database.cpp:540`), read via `GetClassesBits()`.
+  **Consequence:** the sentinel applies to characters **created while multiclassing was enabled**.
+  A pre-existing character whose `character_data.class` still holds a real class is **not** rewritten
+  by zoning (the save path writes `m_pp.class_` back unchanged, `zone/zonedb.cpp:3786,3857`), so
+  `GetClass()` can legitimately return a real class for such characters. Any finding reasoning from
+  the sentinel must therefore scope its affected set by **character creation provenance**, not merely
+  by "multiclassing is enabled".
 
 ---
 
@@ -690,7 +818,8 @@ for the live split.
   caps with MAX/best-of-owned in multiclass mode. **S-04/S-05 FIXED** by `9ca593f8` (pushed).
   **S-03 FIXED** by `036c2177` (pushed) — one-line trainer-class change. **S-02 CLOSED**
   verified-correct / false positive, **not attributed** to any source commit. S-01 (policy), S-09 (policy,
-  forensically resolved) and S-10 (backlog) remain open and are surfaced in §4.2 and §9. The Perl/Lua
+  forensically resolved) remain open and are surfaced in §4.2 and §9. S-10 is **RESOLVED — D (dormant)**
+  with no source change and is no longer a remaining item (§4.2, §4.3). The Perl/Lua
   `GetSkillTrainLevel`
   wrappers and `SkillCaps::GetSkillTrainLevel` itself were **not** part of `036c2177` and remain as
   recorded in §4.2 and §9.
@@ -714,6 +843,24 @@ for the live split.
   resolution and leave `binds[4]` unset, which increases `/setstartcity` reachability. It is recorded
   here solely because of that start-zone/bind interaction, and is excluded from S-09's classification
   entirely.
+- **S-10 forensic resolution (2026-09-29) — classified D (DORMANT); no source change, no commit, and NOT
+  correct-as-is.** Two independent gates suppress observable effect. **Gate A (sufficient on its own for
+  the DORMANT classification):** the RoF2 character-profile encoder never serializes
+  `m_pp.abilitySlotRefresh` — `common/patches/rof2.cpp:2759` hardcodes the historical HT/LoH refresh field
+  to `0`; only the UF/SoF/SoD/Titanium encoders consume the field, and the field is runtime-only with no
+  DB persistence. **Gate B (additional evidence, not required to prove dormancy):** for characters created
+  while multiclassing was enabled, `character_data.class` holds the persisted Bard sentinel, so the
+  Paladin/ShadowKnight equality test at `client_packet.cpp:1791` does not execute anyway. The site itself
+  is reachable and its value genuinely computed from persisted PTimer state, and the class logic beneath
+  it is multiclass-blind — so the code is **retained as a documented latent defect with five preserved
+  defects** (multiclass-blind class test; BOTH-owned unrepresentable in a single field plus `if/else`,
+  with **no policy selected**; hardcoded `remaining < 15300` ceiling unrelated to the current 4300 ms
+  reuse times; asymmetric death reset clearing LoH but not Harm Touch; execution path already mask-aware
+  on independent timers 87/89). Provenance is inherited verbatim from `upstream/main`. Security and
+  data-integrity: none. **Revisit trigger:** if client support changes such that the deployed client
+  begins consuming `abilitySlotRefresh`, or a legacy client using that field becomes supported, this
+  latent code requires a fresh forensic/design pass before activation or repair. No §3 ledger row and no
+  §9 queue row exist for S-10. Full record: §4.3.
 
 ---
 
@@ -729,7 +876,6 @@ Ordered by (a) severity, (b) whether policy is decided.
 | 4 | Resist final bonuses combination rule (sentinel-gated `CalcFR/DR/PR/CR`) | S-01 | MAX vs SUM policy undecided | Open design question — stat-only, moderate |
 | 5 | S-03 residuals — scripting `GetSkillTrainLevel` wrappers still pass the Bard sentinel (`perl_client.cpp:3416-3418`, `lua_client.cpp:3518-3521`); `SkillCaps::GetSkillTrainLevel` exact-level-row behavior unrepaired | S-03 follow-up | No trainer-class context in the scripting API; changing the helper would alter upstream cap semantics | Open — deliberately not changed by `036c2177` |
 | 6 | `/setstartcity` start-city validation/listing under multiclassing (Bard-sentinel `start_zones.player_class` lookup) | S-09 | **Policy undecided** — union-of-owned conflicts with v77/v78 Shar Vahl Druid content; designated/original class is neither persisted nor reconstructable | **Open — forensically resolved; defect confirmed; NO source change** |
-| 7 | SK/Paladin ability refresh | S-10 | None | Not yet resolved — disposition unchanged |
 
 **Hard stop conditions:** Do not modify dormant END-OR-MANA behavior; it is **not** made actionable by
 the B-1 fix (`9ba735e2`) — the END-OR-MANA do-not-modify disposition is independent of B-1 and stands.
