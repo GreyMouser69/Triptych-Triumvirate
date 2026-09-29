@@ -13864,10 +13864,17 @@ void Client::MaxSkills()
                     uint16 classSkillCap = (
                         EQ::skills::IsSpecializedSkill(s.first) ?
 						MAX_SPECIALIZED_SKILL :
-						SkillCaps::Instance()->GetSkillCap(classID, s.first, RuleI(Character, MaxLevel)).cap
+						SkillCaps::Instance()->GetSkillCap(classID, s.first, GetLevel()).cap
 					);
+					highestSkillCap = std::max(highestSkillCap, classSkillCap);
 				}
 			}
+		} else {
+			highestSkillCap = (
+				EQ::skills::IsSpecializedSkill(s.first) ?
+				MAX_SPECIALIZED_SKILL :
+				SkillCaps::Instance()->GetSkillCap(GetClass(), s.first, GetLevel()).cap
+			);
 		}
 
 		// Set skill to the highest cap found across all classes
