@@ -3,7 +3,7 @@
 **Repository:** Triptych Triumvirate / NMS (EQEmu 23.8.1 fork, RoF2 client)
 **Branch:** `nms-development`
 **Compiled by:** opencode agent synthesis (prior explore-agent passes + direct file verification)
-**Last updated:** 2026-09-28 (B-1 `DoDamageCaps` fixed as MAX/best-of-owned in `9ba735e2` — see §6.1; post-B-5 resolution; C-4 plate-user fixed in `2ce84053`; B-6 `MerchantRejectMessage` verified cosmetic-only — see §6.2; faction write-path verified class-insensitive — see §5.3; supersedes prior audit docs)
+**Last updated:** 2026-09-29 (Sweep-2 reconciliation: S-02 CLOSED verified-correct / false positive, S-04/S-05 FIXED in `9ca593f8` — see §4.2. Prior 2026-09-28: B-1 `DoDamageCaps` fixed in `9ba735e2` §6.1; C-4 plate-user fixed in `2ce84053`; B-5 already-correct §4.1; B-6 cosmetic-only §6.2; faction write-path class-insensitive §5.3)
 
 > **AUDIT ONLY — NO CODE MODIFICATIONS.** This document is the canonical historical record for the
 > multiclass foundation audit. It is documentation only and does not change any source.
@@ -140,10 +140,12 @@ pre-fix snapshots where the commit is listed. **No hash in this ledger is inferr
 | `2ce84053` | fix: make Jann class restrictions multiclass-aware | `zone/spell_effects.cpp` | PassCastRestriction plate-user Jann set, **4 cases**: `IS_CLIENT_AND_MALE/FEMALE_PLATE_USER` (11044/11210) replace `IsPlateClass(GetClass())` with `HasAnyClass({Warrior, Cleric, Paladin, ShadowKnight, Bard})`; `IS_CLEINT_AND_MALE/FEMALE_DRUID_ENCHANTER_MAGICIAN_NECROANCER_SHAMAN_OR_WIZARD` (11090/11211) replace `(IsCasterClass(GetClass()) && GetClass() != Class::Cleric)` with `HasAnyClass({Druid, Shaman, Necromancer, Wizard, Magician, Enchanter})`. `IsClient()` + gender gates preserved; non-Client behavior unchanged. Resolved the plate-user **C-4** set (§4/§6.3). |
 | `e647073d` | docs: add NMS development guidance | `AGENTS.md` | Documentation only; records the multiclass architecture. Not a code fix. |
 | `9ba735e2` | fix: make damage caps multiclass-aware | `zone/attack.cpp` | B-1: `DoDamageCaps` now selects the highest damage-cap tier among owned classes via `GetClassesBits()` + `HasClass(i, classes_bits)` + `std::max`; the per-class/per-level cap table is factored verbatim into the file-scope `DoDamageCapByClass` helper; zero-mask fallback keeps the legacy `default` tier; the `LevelToStopDamageCaps` early return and final `std::min` are preserved. Resolved **B-1**. |
+| `9ca593f8` | fix: make spell-level lookups multiclass-aware | `zone/effects.cpp`, `zone/mob.cpp` | S-04: `GetActSpellDamage` crit extra-spell-damage level restriction (`effects.cpp:320`) and `GetActSpellCost` Clairvoyance restriction (`effects.cpp:836`) — raw `spells[].classes[(GetClass()%17)-1]` replaced with `GetSpellLevelForCaster(spell_id)`; `>= GetLevel() - 5` comparison unchanged. S-05: `GetDecayEffectValue` (`mob.cpp:7509`) — `IsClient() ? GetSpellLevelForCaster(spell_id) : spells[spell_id].classes[(GetClass()%17)-1]`; non-Client path preserved. Single-class behavior byte-identical. **Does not include S-02** — no source change was required (§4.2). |
 
 Combined, these commits close **every A/B-1/B-2/B-4/B-5, all C-1/C-2/C-3**, the **cast-restriction C-4**
-occurrences, and the **plate-user C-4 (Jann/illusion) set** (`2ce84053`). Remaining open items are in
-§6 and §9.
+occurrences, and the **plate-user C-4 (Jann/illusion) set** (`2ce84053`), plus the Sweep-2 spell-level
+lookups (S-04/S-05, `9ca593f8`). S-02 is CLOSED verified-correct with no source change (§4.2). Remaining
+open items are in §6, §4.2 (S-01/S-03/S-06..S-10), and §9.
 
 ---
 
@@ -225,6 +227,23 @@ this audit.
 
 ---
 
+### 4.2 Sweep 2 — spell-level lookups & base_data regen (2026-09-29)
+
+Sweep-2 candidates surfaced by the automated code sweep are tracked as **S-01..S-10**. This table is
+the **live status for the S-series**; it is not part of the historical A/B/C tally — the §1 counts and
+the §4 A/B/C/D/E/F matrix are unchanged.
+
+| Sweep-2 ID | Site (HEAD `9ca593f8`) | Status | Details |
+|------------|------------------------|--------|---------|
+| S-02 | `zone/client_mods.cpp:240-243` (`CalcHPRegen`), `1709-1713` (`CalcEnduranceRegen`) | **VERIFIED CORRECT / FALSE POSITIVE — CLOSED (no source change)** | Both consumers read only `base_data.hp_regen` / `base_data.end_regen`. Column order `base_base_data_repository.h:55-68`. Shipped data re-verified 2026-09-29 from `release-peq.zip`: **1600 rows (100 levels × 16 classes), exactly one `(hp_regen,end_regen)` pair per level** (L1=2/5, L75=9/20, L100=14/24). The Bard-sentinel `GetClass()` row lookup cannot change the result. Columns are upstream renames of `unk1`/`unk2` (`database_update_manifest.cpp:5266-5268`). **Latent hazard:** becomes multiclass-sensitive *only if* these fields are ever made class-dependent. |
+| S-04 | `zone/effects.cpp:320` (`GetActSpellDamage` crit extra-spell-damage level restriction); `zone/effects.cpp:836` (`GetActSpellCost` Clairvoyance restriction) | **FIXED** — `9ca593f8` | Raw `spells[].classes[(GetClass()%17)-1]` replaced with `GetSpellLevelForCaster(spell_id)` → earliest/minimum spell level among owned classes. `>= GetLevel() - 5` comparison unchanged; no unrelated spell-damage formulas touched; single-class behavior preserved (single-bit mask → same column). |
+| S-05 | `zone/mob.cpp:7509` (`GetDecayEffectValue`) | **FIXED** — `9ca593f8` | Guarded: `IsClient() ? GetSpellLevelForCaster(spell_id) : spells[spell_id].classes[(GetClass()%17)-1]`. Multiclass Clients now use earliest owned-class level; **all non-Client entities deliberately retain the legacy lookup.** The raw `classes[(GetClass` occurrence inside this ternary is **intentional, not residual**. |
+| S-01 | Resist final bonuses (`zone/client_mods.cpp`: `CalcMR` 1088 already mask-aware; `CalcFR` 1161, `CalcDR` 1247, `CalcPR` 1339, `CalcCR` 1431 sentinel-gated) | **OPEN — policy required (MAX vs SUM)** | Disposition unchanged; not part of `9ca593f8`. See §9. |
+| S-03 | `zone/client_process.cpp:2136` trainer new-skill level lookup (`GetSkillTrainLevel(skill, GetClass())`) | **OPEN — confirmed mechanical, not yet implemented** | Disposition unchanged. Fix: pass `trains_class`. See §9. |
+| S-06..S-10 | Sweep-2 candidates (MaxSkills, guild `IsEquipable`, `/who`, `/setstartcity`, SK/Pal refresh) | **OPEN — not yet resolved** | Disposition unchanged. See §9. |
+
+---
+
 ## 5. Verified Correct / No-Change Sites
 
 ### 5.1 PassCastRestriction — exact rewrites from `974cb171` and `b1aa4b5d` (reference)
@@ -252,7 +271,7 @@ Batch 2 (`b1aa4b5d`):
 |------|-----------|--------|-------|
 | `CheckDoubleAttack` / `CheckTripleAttack` | `zone/attack.cpp:4286-4313` | Verified correct | Uses `HasClass()` loop over owned classes; triple-attack best-of added in `17944113`. |
 | `GetFactionLevel` iteration | `zone/client.cpp:9753-9765` | Verified correct | Iterates `GetClassesBits()`. |
-| `GetSpellLevelForCaster` min-level aggregation | `zone/spells.cpp` | Verified correct | MIN across owned classes (added in `70ad9f2c`). |
+| `GetSpellLevelForCaster` min-level aggregation | `zone/spell_effects.cpp:5906-5919` (decl `zone/mob.h:993`) | Verified correct | MIN across owned classes. Introduced in `zone/spells.cpp` by `70ad9f2c`; the definition was later relocated to `spell_effects.cpp`. |
 | `CanCastSpell` union semantics | `zone/spells.cpp` | Verified correct | Union over owned classes. |
 | `MaxSkill` / `CanHaveSkill` | `zone/skills.cpp` | Verified correct | Loops `HasClass()` over owned. |
 | `CalcBaseHP` / `CalcBaseEndurance` | `zone/client.cpp` | Verified correct | MAX semantics over owned classes. |
@@ -583,6 +602,10 @@ for the live split.
 - **Unreachable else-branches look like dead bugs.** Under multiclassing the `else` (single-class) paths
   of `SendAlternateAdvancementRank` and `CanUseAlternateAdvancementRank` (aa.cpp:1019, 1960) are correct
   single-class code, not latent multiclass bugs. Trace reachability before "fixing".
+- **`spells[].classes[]` is indexed by `class_id - 1`.** Index **7 is the Bard column**, index **13 the
+  Enchanter column** (Bard ID 8, Enchanter ID 14). A lookup keyed off the Bard sentinel `GetClass()`
+  reads the Bard column — not any owned class — so resolve via `GetSpellLevelForCaster()`
+  (earliest/minimum level) instead of a sentinel-indexed column read.
 
 ### 7.2 Documentation corrections vs. prior audit files
 
@@ -598,6 +621,9 @@ for the live split.
 - Prior docs **deprecated** by this canonical record: `nms-multiclass-audit.md`,
   `audit_bard_attack_while_casting.md`, `audit_bard_attack_while_casting_RECHECK.md`. They are retained
   unmodified for history (banner added only) and must not be re-edited as live findings.
+- **`GetSpellLevelForCaster` location.** §5.2 previously pinned it to `zone/spells.cpp`; the current
+  definition is `zone/spell_effects.cpp:5906-5919` (introduced by `70ad9f2c` in `spells.cpp`, later
+  relocated). Use the location in §5.2 going forward.
 
 ---
 
@@ -620,8 +646,12 @@ for the live split.
   (2026-09-28) — historical; the closure is recorded in §6.1.
 - Ledger hashes were re-verified against `git log` on `nms-development` on 2026-09-28. Do not trust the
   commit columns in older audit files (several were wrong).
-- Line numbers in this document are the current `nms-development` snapshot (2026-09-28) unless the §3
+- Line numbers in this document are the current `nms-development` snapshot (2026-09-29) unless the §3
   column says "pre-fix". Shift-tolerant searches should be used before re-editing.
+- Sweep-2 reconciliation (2026-09-29): the S-series is tracked in §4.2 (not the historical A/B/C
+  matrix; §1/§4 tallies unchanged). **S-04/S-05 FIXED** by `9ca593f8` (pushed). **S-02 CLOSED**
+  verified-correct / false positive, **not attributed** to any source commit. S-01 (policy), S-03
+  (mechanical, unimplemented), and S-06..S-10 (backlog) remain open and are surfaced in §4.2 and §9.
 
 ---
 
@@ -634,6 +664,9 @@ Ordered by (a) severity, (b) whether policy is decided.
 | 1 | END-OR-MANA latent representation bug | C-4 (MEDIUM) | Resource-policy undecided + no shipped data to validate against | **Blocked** — dormant; do-not-modify decision stands |
 | 2 | `MerchantRejectMessage` rejection text | B-6 (MEDIUM) | Product/UI choice: worst-modifier class, enumerate owned, neutral text, or sentinel | Open design question — cosmetic, non-gameplay |
 | 3 | Bots (full subsystem) | D series / out-of-scope | Bot subsystem deferred by project scope | Out of scope until project says otherwise |
+| 4 | Resist final bonuses combination rule (sentinel-gated `CalcFR/DR/PR/CR`) | S-01 | MAX vs SUM policy undecided | Open design question — stat-only, moderate |
+| 5 | Trainer new-skill level lookup (`client_process.cpp:2136`) | S-03 | Single-line fix identified (`trains_class`); shipped-data surface = Skill 77 `Skill2HPiercing` only | Confirmed mechanical; not yet implemented |
+| 6 | Sweep-2 backlog — MaxSkills, guild `IsEquipable`, `/who`, `/setstartcity`, SK/Pal ability refresh | S-06..S-10 | None | Not yet resolved |
 
 **Hard stop conditions:** Do not modify dormant END-OR-MANA behavior; it is **not** made actionable by
 the B-1 fix (`9ba735e2`) — the END-OR-MANA do-not-modify disposition is independent of B-1 and stands.
