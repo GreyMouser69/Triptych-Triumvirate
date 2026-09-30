@@ -461,11 +461,15 @@ void ZoneDatabase::UpdateBuyLine(uint32 CharID, uint32 BuySlot, uint32 Quantity)
 
 #define StructDist(in, f1, f2) (uint32(&in->f2)-uint32(&in->f1))
 
-bool ZoneDatabase::LoadCharacterData(uint32 character_id, PlayerProfile_Struct* pp, ExtendedProfile_Struct* m_epp){
+bool ZoneDatabase::LoadCharacterData(uint32 character_id, PlayerProfile_Struct* pp, ExtendedProfile_Struct* m_epp, uint8* creation_class){
 	const auto& e = CharacterDataRepository::FindOne(database, character_id);
 	if (!e.id) {
 		return false;
 	}
+
+	// S-09: immutable original creation class. 0 = UNKNOWN for every legacy row;
+	// callers must fail closed rather than fall back to any derived value.
+	*creation_class = e.creation_class;
 
 	strcpy(pp->name, e.name.c_str());
 	strcpy(pp->last_name, e.last_name.c_str());

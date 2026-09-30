@@ -2419,6 +2419,13 @@ public:
 	bool GetSavedPetCommand(uint8 class_id, uint8 command_id);
 	void SetSavedPetCommand(uint8 class_id, uint8 command_id, bool new_state);
 
+	// S-09: the single concrete class this character was actually created as,
+	// persisted immutably in character_data.creation_class by the world server.
+	// 0 means UNKNOWN (every legacy character) and callers must fail closed.
+	// Deliberately not part of PlayerProfile_Struct: this is server-only state,
+	// not client-visible, and is never rewritten by class mutation.
+	uint8 GetCreationClass() const { return m_creation_class; }
+
 private:
 
 	std::unordered_map<uint8, CharacterPetCommandStatesRepository::PetCommandStates> m_pet_command_cache;
@@ -2595,6 +2602,10 @@ private:
 
 	EQ::versions::ClientVersion m_ClientVersion;
 	uint32 m_ClientVersionBit;
+
+	// S-09: immutable original creation class; 0 = UNKNOWN. Read-only accessor
+	// above, no setter, written only by ZoneDatabase::LoadCharacterData.
+	uint8 m_creation_class = 0;
 
 	int XPRate;
 

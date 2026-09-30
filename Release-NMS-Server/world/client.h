@@ -81,7 +81,8 @@ public:
 	bool StoreCharacter(
 		uint32 account_id,
 		PlayerProfile_Struct *p_player_profile_struct,
-		EQ::InventoryProfile *p_inventory_profile
+		EQ::InventoryProfile *p_inventory_profile,
+		uint8 creation_class
 	);
 
 	void SendCharacterSetInfo();

@@ -1468,7 +1468,7 @@ void Client::Handle_Connect_OP_ZoneEntry(const EQApplicationPacket *app)
 	database.LoadCharacterMaterialColor(cid, &m_pp); /* Load Character Material */
 	database.LoadCharacterPotionBelt(cid, &m_pp); /* Load Character Potion Belt */
 	database.LoadCharacterCurrency(cid, &m_pp); /* Load Character Currency into PP */
-	database.LoadCharacterData(cid, &m_pp, &m_epp); /* Load Character Data from DB into PP as well as E_PP */
+	database.LoadCharacterData(cid, &m_pp, &m_epp, &m_creation_class); /* Load Character Data from DB into PP as well as E_PP */
 	database.LoadCharacterSkills(cid, &m_pp); /* Load Character Skills */
 	database.LoadCharacterInspectMessage(cid, &m_inspect_message); /* Load Character Inspect Message */
 	database.LoadCharacterSpellBook(cid, &m_pp); /* Load Character Spell Book */
@@ -13724,6 +13724,20 @@ void Client::Handle_OP_SetStartCity(const EQApplicationPacket *app)
 		return;
 	}
 
+	// S-09: /setstartcity must resolve the home city from the single concrete class this
+	// character was actually created as. Under multiclassing m_pp.class_ is the Bard
+	// sentinel and m_pp.classes is a union bitmask, so neither identifies the original
+	// creation class. Fail closed when the immutable creation class is unknown (0),
+	// which is the case for every legacy character. No derived value is substituted.
+	const uint32 creation_class = m_creation_class;
+	if (creation_class == 0 || !IsPlayerClass(creation_class)) {
+		Message(
+			Chat::Red,
+			"Your original creation class cannot be determined. Ask a GM to set your home city."
+		);
+		return;
+	}
+
 	float x = 0.0f, y = 0.0f, z = 0.0f, heading = 0.0f;
 	uint32 zone_id = 0;
 	uint32 start_city = (uint32)strtol((const char*)app->pBuffer, nullptr, 10);
@@ -13740,7 +13754,7 @@ void Client::Handle_OP_SetStartCity(const EQApplicationPacket *app)
 			AND
 			player_race = {} {}
 		),
-		m_pp.class_,
+		creation_class,
 		m_pp.deity,
 		m_pp.race,
 		ContentFilterCriteria::apply().c_str()
@@ -13787,7 +13801,7 @@ void Client::Handle_OP_SetStartCity(const EQApplicationPacket *app)
 			AND
 			player_race = {}
 		),
-		m_pp.class_,
+		creation_class,
 		m_pp.deity,
 		m_pp.race
 	);
@@ -17522,7 +17536,7 @@ void Client::Handle_OP_Offline(const EQApplicationPacket *app)
 	EQStreamInterface *eqsi           = nullptr;
 	auto               offline_client = new Client(eqsi);
 
-	database.LoadCharacterData(CharacterID(), &offline_client->GetPP(), &offline_client->GetEPP());
+	database.LoadCharacterData(CharacterID(), &offline_client->GetPP(), &offline_client->GetEPP(), &offline_client->m_creation_class);
 	offline_client->Clone(*this);
 	offline_client->GetInv().SetGMInventory(true);
 	offline_client->SetPosition(GetX(), GetY(), GetZ());

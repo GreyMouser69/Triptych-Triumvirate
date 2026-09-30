@@ -5127,6 +5127,44 @@ WHERE `class` = 6 AND `race` IN (6, 9, 10, 128);
 		.content_schema_update = true,
 	},
 
+	ManifestEntry{
+		.version = 79,
+		.description = "2026_09_30_character_data_creation_class",
+		// Guard: run only while character_data.creation_class does not exist.
+		.check = "SHOW COLUMNS FROM `character_data` LIKE 'creation_class'",
+		.condition = "empty",
+		.match = "",
+		.sql = R"SVCCLASS(
+-- ============================================================================
+-- 2026-09-30 character_data.creation_class: immutable original creation class
+-- /setstartcity must resolve the home city from the single concrete class the
+-- character was actually created as. Under multiclassing character_data.class is
+-- forced to the Bard sentinel and m_pp.classes is a union bitmask, so neither is
+-- usable. This column records the genuine, already-validated CharCreate class.
+--
+-- Deliberately NOT backfilled. No legacy population is provably recoverable:
+--   * character_data.class is mutable (#set class_permanent) and can be the
+--     sentinel;
+--   * the GestaltClasses bucket stores a class *set*, not a history, so an
+--     add-then-remove pair reproduces any single-bit state exactly, and
+--     #databuckets delete|edit can remove or rewrite it outright;
+--   * char_bind records the creation zone but is mutable and non-injective
+--     across (race, class, deity).
+-- Per locked S-09 policy, every existing row stays 0 = UNKNOWN and those
+-- characters fail closed in /setstartcity, using #set start_zone <zoneid> as the
+-- GM recovery path.
+--
+-- Appended last so the 106 existing character_data ordinals are unchanged and
+-- pre-existing 106-column REPLACE INTO statements stay positionally valid.
+-- Idempotent: after the first run the guard check is no longer empty.
+-- ============================================================================
+
+ALTER TABLE `character_data`
+	ADD COLUMN `creation_class` TINYINT(3) UNSIGNED NOT NULL DEFAULT 0;
+)SVCCLASS",
+		.content_schema_update = false,
+	},
+
 	// Used for testing
 
 	//	ManifestEntry{

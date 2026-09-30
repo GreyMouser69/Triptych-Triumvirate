@@ -440,7 +440,7 @@ bool Database::DeleteCharacter(const std::string& name)
 	return true;
 }
 
-bool Database::SaveCharacterCreate(uint32 character_id, uint32 account_id, PlayerProfile_Struct *pp)
+bool Database::SaveCharacterCreate(uint32 character_id, uint32 account_id, PlayerProfile_Struct *pp, uint8 creation_class)
 {
 	auto c = CharacterDataRepository::NewEntity();
 
@@ -451,6 +451,7 @@ bool Database::SaveCharacterCreate(uint32 character_id, uint32 account_id, Playe
 	c.gender                  = pp->gender;
 	c.race                    = pp->race;
 	c.class_                  = pp->class_;
+	c.creation_class          = IsPlayerClass(creation_class) ? creation_class : 0;
 	c.level                   = pp->level;
 	c.deity                   = pp->deity;
 	c.birthday                = pp->birthday;

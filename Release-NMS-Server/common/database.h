@@ -101,7 +101,7 @@ public:
 	bool MoveCharacterToZone(const std::string& name, uint32 zone_id);
 	bool MoveCharacterToZone(uint32 character_id, uint32 zone_id);
 	bool ReserveName(uint32 account_id, const std::string& name, Database& content_db);
-	bool SaveCharacterCreate(uint32 character_id, uint32 account_id, PlayerProfile_Struct* pp);
+	bool SaveCharacterCreate(uint32 character_id, uint32 account_id, PlayerProfile_Struct* pp, uint8 creation_class);
 	bool UpdateName(const std::string& old_name, const std::string& new_name);
 	bool UpdateNameByID(const int character_id, const std::string& new_name);
 	bool CopyCharacter(

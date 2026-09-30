@@ -2144,7 +2144,7 @@ bool Client::OPCharCreate(char* name, CharCreate_Struct* cc) {
 		database.QueryDatabase(query);
 	}
 
-	const bool success = StoreCharacter(GetAccountID(), &pp, &inv);
+	const bool success = StoreCharacter(GetAccountID(), &pp, &inv, cc->class_);
 
 	if (success)
 	{
@@ -2640,7 +2640,8 @@ void Client::SetClassLanguages(PlayerProfile_Struct* pp)
 bool Client::StoreCharacter(
 	uint32 account_id,
 	PlayerProfile_Struct *p_player_profile_struct,
-	EQ::InventoryProfile *p_inventory_profile
+	EQ::InventoryProfile *p_inventory_profile,
+	uint8 creation_class
 )
 {
 	const uint32 character_id = database.GetCharacterID(p_player_profile_struct->name);
@@ -2653,7 +2654,7 @@ bool Client::StoreCharacter(
 		p_player_profile_struct->zone_id = Zones::QEYNOS;
 	}
 
-	database.SaveCharacterCreate(character_id, account_id, p_player_profile_struct);
+	database.SaveCharacterCreate(character_id, account_id, p_player_profile_struct, creation_class);
 
 	std::vector<InventoryRepository::Inventory> v;
 
