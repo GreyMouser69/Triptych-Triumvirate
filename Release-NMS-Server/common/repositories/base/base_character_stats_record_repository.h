@@ -666,6 +666,7 @@ public:
 		v.push_back(std::to_string(e.endurance_regen));
 		v.push_back(std::to_string(e.shielding));
 		v.push_back(std::to_string(e.spell_damage));
+		v.push_back(std::to_string(e.heal_amount));
 		v.push_back(std::to_string(e.spell_shielding));
 		v.push_back(std::to_string(e.strikethrough));
 		v.push_back(std::to_string(e.stun_resist));
@@ -1125,6 +1126,7 @@ public:
 		v.push_back(std::to_string(e.endurance_regen));
 		v.push_back(std::to_string(e.shielding));
 		v.push_back(std::to_string(e.spell_damage));
+		v.push_back(std::to_string(e.heal_amount));
 		v.push_back(std::to_string(e.spell_shielding));
 		v.push_back(std::to_string(e.strikethrough));
 		v.push_back(std::to_string(e.stun_resist));
