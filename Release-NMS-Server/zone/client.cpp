@@ -757,7 +757,7 @@ Client::~Client() {
 	}
 
 	if (IsTrader()) {
-		TraderRepository::DeleteWhere(database, fmt::format("`char_id` = '{}'", CharacterID()));
+		TraderRepository::DeleteWhere(database, fmt::format("`character_id` = '{}'", CharacterID()));
 
 		SendBecomeTraderToWorld(this, TraderOff);
 		SendTraderMode(TraderOff);

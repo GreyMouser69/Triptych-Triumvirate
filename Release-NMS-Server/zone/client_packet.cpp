@@ -878,7 +878,7 @@ void Client::CompleteConnect()
 
 		if (is_first_login) {
 			e.first_login = time(nullptr);
-			TraderRepository::DeleteWhere(database, fmt::format("`char_id` = '{}'", CharacterID()));
+			TraderRepository::DeleteWhere(database, fmt::format("`character_id` = '{}'", CharacterID()));
 			BuyerRepository::DeleteBuyer(database, CharacterID());
 			LogTradingDetail(
 				"Removed trader abd buyer entries for Character ID {} on first logon to ensure table consistency.",
@@ -942,7 +942,7 @@ void Client::CompleteConnect()
 
 	if (zone->GetZoneID() == Zones::BAZAAR) {
 		if (IsTrader()) {
-			TraderRepository::DeleteWhere(database, fmt::format("`char_id` = '{}'", CharacterID()));
+			TraderRepository::DeleteWhere(database, fmt::format("`character_id` = '{}'", CharacterID()));
 
 			SendBecomeTraderToWorld(this, TraderOff);
 			SendTraderMode(TraderOff);
