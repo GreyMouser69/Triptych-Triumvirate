@@ -8,6 +8,8 @@
 #include "dynamic_zone.h"
 #include "titles.h"
 #include "dialogue_window.h"
+// NMS-LOCAL: GENERIC_SAY (1032, "%1 says '%2'") for Perl_Client_NPCSayTo below.
+#include "string_ids.h"
 
 void Perl_Client_SendSound(Client* self) // @categories Script Utility
 {
@@ -1657,6 +1659,35 @@ void Perl_Client_ReloadNMSVaultLocker(Client* self)
 	self->ReloadNMSVaultLocker();
 }
 
+/*
+ * NMS-LOCAL: NPC speech delivered to ONE client.
+ *
+ * Mob::Say builds an OP_FormattedMessage (Chat::NPCQuestSay, GENERIC_SAY) and
+ * hands the same packet to entity_list.MessageCloseString, which queues it to
+ * every client within `distance` (200 units by default). The vault client's chat
+ * hook keys on exactly that packet, so every VAULTDATA line the vault spoke was
+ * also rendered in the window of every vault client standing nearby -- their
+ * vault opened and filled with someone else's items -- and every non-vault
+ * player nearby read the raw `VAULTDATA|ADD|...` lines as chat spam.
+ *
+ * This is the identical packet, queued to `self` alone. Client::MessageString
+ * takes `distance` last and defaults to 0; at 0 it calls QueuePacket() on this
+ * client instead of fanning out through entity_list (client.cpp:5016-5062). The
+ * argument order -- npc name first, then the message -- matches GENERIC_SAY's
+ * "%1 says '%2'" substitution, so the client renders it as ordinary NPC speech.
+ *
+ * Generic quest chat is untouched: Mob::Say, Client::Message, and every other
+ * message path still broadcast exactly as before. Only scripts that opt in by
+ * calling this method change behaviour.
+ */
+void Perl_Client_NPCSayTo(Client* self, const char *npc_name, const char *message) // @categories Script Utility
+{
+	if (!npc_name || !message) {
+		return;
+	}
+
+	self->MessageString(Chat::NPCQuestSay, GENERIC_SAY, npc_name, message);
+}
 void Perl_Client_OpenLFGuildWindow(Client* self) // @categories Script Utility, Guild
 {
 	self->OpenLFGuildWindow();
@@ -4007,6 +4038,7 @@ void perl_register_client()
 	package.add("NPCSpawn", (void(*)(Client*, NPC*, const char*))&Perl_Client_NPCSpawn);
 	package.add("NPCSpawn", (void(*)(Client*, NPC*, const char*, uint32))&Perl_Client_NPCSpawn);
 	package.add("NotifyNewTitlesAvailable", &Perl_Client_NotifyNewTitlesAvailable);
+	package.add("NPCSayTo", &Perl_Client_NPCSayTo);
 	package.add("NukeItem", (uint32_t(*)(Client*, uint32))&Perl_Client_NukeItem);
 	package.add("NukeItem", (uint32_t(*)(Client*, uint32, uint8))&Perl_Client_NukeItem);
 	package.add("OpenLFGuildWindow", &Perl_Client_OpenLFGuildWindow);

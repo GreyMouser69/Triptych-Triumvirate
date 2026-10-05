@@ -57,6 +57,19 @@ sub EVENT_ENTERZONE {
         UpdateDayNightCycle($zonesn, $instanceid, $zonetime);
         quest::settimer("DayNightTimer", 30);
     }
+
+    # Re-apply the buffs stored on the vault's Clicky pages, as the DLL's tooltip
+    # promises: "Clicky buff bags placed in these pages will automatically be
+    # loaded upon zoning or relogging."
+    #
+    # Deferred by a few seconds rather than run inline: buffs applied while the
+    # client is still loading the zone can be dropped before the buff window
+    # exists, and this fires on every zone including login.
+    #
+    # NMS timer name is qualified because Triptych's global_player.pl already
+    # arms DayNightTimer above; the vault's timer is a distinct one-shot and is
+    # stopped again in EVENT_TIMER.
+    quest::settimer("NMSVaultClickyLoad", 3);
 }
 
 sub EVENT_RESPAWN {
@@ -761,6 +774,172 @@ sub EVENT_SAY {
             }
         }
     }
+
+    # ---- the vault -----------------------------------------------------------
+    # The DLL is request/response: it asks with #vault_page <n> and renders only
+    # what comes back as a reply -- unsolicited VAULTDATA is dropped. Every branch
+    # below returns 1, because with Chat:AlwaysCaptureCommandText on a falsy
+    # return prints a red "Command not recognized".
+    #
+    # NMS adaptation: plugin functions here all return 1 on every path, including
+    # their failure paths (each sends the player its own message first), so the
+    # return value is passed straight through rather than discarded.
+    {
+        if ($text =~ /^#vault_page\s*(\d+)/i) {
+            my $page = $1;
+            $page = 1 unless ($page >= 1 && $page <= 9);
+            plugin::VaultCurrentPage($client, $page);
+            plugin::VaultRender($client, $page);
+            return 1;
+        }
+
+        # The _bagitem forms MUST be tested before the generic deposit/withdraw
+        # prefixes below. `#vault_deposit_bagitem_specific 1 0` would otherwise match
+        # the bare /^#vault_deposit/ catch-all and deposit to the PAGE, overwriting
+        # the very bag the item was being placed into.
+        #
+        # Both take (vault_slot, bag_slot) where bag_slot is 0-based.
+        if ($text =~ /^#vault_deposit_bagitem_specific\s+(\d+)\s+(\d+)/i) {
+            return plugin::VaultBagDeposit($client, $1, $2);
+        }
+        if ($text =~ /^#vault_withdraw_bagitem\s+(\d+)\s+(\d+)/i) {
+            return plugin::VaultBagWithdraw($client, $1, $2);
+        }
+
+        if ($text =~ /^#vault_withdraw\s+(\d+)/i) {
+            return plugin::VaultWithdraw($client, $1);
+        }
+
+        # #vault_move <from> <to> -- global slots, pages 1-6. See plugin::VaultMove.
+        if ($text =~ /^#vault_move\s+(\d+)\s+(\d+)/i) {
+            return plugin::VaultMove($client, $1, $2);
+        }
+
+        # #vault_find <text> -- same as .vaultfind, for tools that speak the
+        # DLL's command style. See plugin::VaultFind.
+        if ($text =~ /^#vault_find\s*(.*)$/i) {
+            return plugin::VaultFind($client, $1);
+        }
+        if ($text =~ /^#vault_index\b/i) {
+            return plugin::VaultIndex($client);
+        }
+        if ($text =~ /^#vault_stash\b/i) {
+            return plugin::VaultStash($client);
+        }
+
+        # #vault_deposit_inv <general 1-10> [<bag position>]: store an inventory item
+        # without the cursor (the client's Deposit all / shift-click).
+        if ($text =~ /^#vault_deposit_inv\s+(\d+)(?:\s+(\d+))?/i) {
+            return plugin::VaultDepositFromInventory($client, $1, $2);
+        }
+
+        # #vault_lootstash: the loot window's Vault action. nms_lootoffer.cpp puts the
+        # looted item on the cursor and fires this, so loot is stored by exactly the
+        # same rules as a hand deposit. Quiet: no vault window popping open per drop.
+        #
+        # NMS: the firing side lands in a later patch; the branch is here now so the
+        # command is recognised the moment that side exists.
+        if ($text =~ /^#vault_lootstash\b/i) {
+            local $plugin::VAULT_QUIET = 1;
+            return plugin::VaultStash($client);
+        }
+
+        # Clicking an empty square. VERIFIED in BFE 2026-08-31: the DLL sends this and
+        # the client is NOT disconnected -- no Possible Hack row, no kick. The feared
+        # OP_MoveItem-into-bank-range problem does not arise on this path, so the
+        # deposit is handled here directly and .vaultput is just a convenience.
+        if ($text =~ /^#vault_deposit\s+(\d+)/i) {
+            return plugin::VaultDeposit($client, $1);
+        }
+        if ($text =~ /^#vault_deposit/i) {
+            return plugin::VaultDeposit($client);
+        }
+    }
+
+    # #vault_bank: the DLL opens the real bank window itself, so the server only
+    # needs to not complain about it.
+    if ($text =~ /^#vault_bank\b/i) {
+        return 1;
+    }
+
+    # #vault_merchant: summon the player's Clockwork Resupply Agent.
+    #
+    # NMS adaptation: BFE summoned a second, augment-stocked agent (NPC 151259,
+    # Gemcrafter Anuk's stock) here. Triptych has no augment agent and no
+    # merchant list 382051, so this reuses the existing 771 resupply agent that
+    # AA 8081 "Summon Resupply Agent" already brings, following the same
+    # owner/depop convention. Not gated on owning any AA or a recast -- a
+    # convenience for anyone with the vault open.
+    if ($text =~ /^#vault_merchant\b/i) {
+        unless (plugin::VaultSummonMerchant($client)) {
+            $client->Message(13, "[Vault] Could not summon a resupply agent here.");
+            return 1;
+        }
+        $client->Message(15, "[Vault] Your Clockwork Resupply Agent has arrived.");
+        return 1;
+    }
+
+    # .vaultput -- deposit the cursor item into the page being viewed.
+    if ($text =~ /^\.vaultput$/i) {
+        return plugin::VaultDeposit($client);
+    }
+
+    # .vaultfind <text> -- list every vault item (bag contents included) whose
+    # name contains the text, with the slots to withdraw it by. The client's
+    # Find Item window cannot see the vault, so this is the search.
+    if ($text =~ /^\.vaultfind\s*(.*)$/i) {
+        return plugin::VaultFind($client, $1);
+    }
+
+    # .vaultindex -- the whole vault with stats, packed for an indexer such as
+    # MacroQuest's finditem. See plugin::VaultIndex for the record layout.
+    if ($text =~ /^\.vaultindex\b/i) {
+        return plugin::VaultIndex($client);
+    }
+
+    # .vaultstash -- put the cursor item away wherever the vault has room, bags
+    # included. See plugin::VaultStash.
+    if ($text =~ /^\.vaultstash\b/i) {
+        return plugin::VaultStash($client);
+    }
+
+    # ---- .vault / .nmsvault -------------------------------------------------
+    # Opens the Dimensional Pocket Vault window.
+    #
+    # There is NO client-side command for this. The DLL registers /nmsloot,
+    # /browser and /mapfilter but nothing for the vault, so a player has no way
+    # to open it on their own -- which is why it looked permanently broken.
+    #
+    # The window is opened ONLY by an NPC speaking `VAULTDATA|OPEN|<page>`.
+    # Established by testing during the protocol work: $client->Message() in
+    # three variants and a hand-built fake tell all did nothing. The DLL's chat
+    # hook is on real NPC speech, so an NPC has to say it. Speaker selection now
+    # lives in plugin::VaultSpeaker.
+    #
+    # `.vault [n]` -- n is the PAGE to show (1-9), not a page count. All nine tabs
+    # always exist; the earlier "pages" reading was wrong.
+    if ($text =~ /^\.(?:nms)?vault\s*(\d*)$/i) {
+        my $page = $1;
+        $page = 1 unless ($page && $page >= 1);
+        $page = 9 if ($page > 9);
+
+        # Renders that page's real contents; the DLL drives everything after this
+        # by asking for pages itself. VaultRender reports its own failure if no NPC
+        # is in range, so there is nothing to check here.
+        plugin::VaultCurrentPage($client, $page);
+        plugin::VaultRender($client, $page) or return 1;
+        $client->Message(15, "[Vault] Open on page $page. Click a tab to browse; "
+                           . "click an item to withdraw; .vaultput stores what is on your cursor.");
+        return 1;
+    }
+
+    # Catch-all for the rest of the vault command family. The specific forms above
+    # are handled; anything else beginning #vault_ is a command this DLL knows about
+    # but this zone does not implement, and answering it with a red "Command not
+    # recognized" is worse than a silent no-op.
+    if ($text =~ /^#vault_/i) {
+        return 1;
+    }
 }
 
 
@@ -836,6 +1015,13 @@ sub POPZoneFlags {
 sub EVENT_TIMER {
     if ($timer eq "DayNightTimer") {
         UpdateDayNightCycle($zonesn, $instanceid, $zonetime);
+    }
+
+    # NMS: one-shot. Armed by EVENT_ENTERZONE, stopped here before the work runs
+    # so it does not repeat for the rest of the session.
+    if ($timer eq "NMSVaultClickyLoad") {
+        quest::stoptimer("NMSVaultClickyLoad");
+        plugin::VaultClickyLoad($client);
     }
 }
 
