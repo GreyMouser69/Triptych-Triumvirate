@@ -1,8 +1,11 @@
 -- ============================================================================
 -- Triptych content health check - verifies the DATA each custom-manifest
--- version is supposed to deliver, without trusting db_version. Coverage is
--- full for v18-v42 plus targeted checks for v50 (the alternate-currency
--- self-heal) and v62-v63 (the Fabled season schema).
+-- version is supposed to deliver, without trusting db_version. It contains
+-- targeted checks for selected payloads from v18-v42, v50 (the alternate-
+-- currency self-heal), v62-v63 (the Fabled season schema), v71 (Triune blessing
+-- names), and v80 (the vault/loot player-schema objects and rule rows). It is
+-- not exhaustive coverage of every feature in those versions and does not audit
+-- v43-v49, v51-v61, v64-v70, or v72-v79.
 --
 -- Why this exists: we have now twice found servers whose custom_version was
 -- stamped PAST an entry whose content never landed (a half-apply healed by a
@@ -11,9 +14,8 @@
 -- expectation - anything that misses its expected value identifies exactly
 -- which payload is absent.
 --
--- Expected custom_version on a fully-booted server: 63. A fresh import only
--- reaches that once the first `world` boot applies the outstanding custom
--- migrations (v35-v63). So "63" is correct only after first boot.
+-- custom_version is printed for context only. This file does not assert a
+-- version ceiling because it does not inspect every custom migration.
 --
 -- Run (Windows / MariaDB):
 --   "C:\Program Files\MariaDB 12.3\bin\mariadb.exe" -u <user> -p <dbname> < nms_content_health_check.sql
@@ -27,7 +29,7 @@
 -- READ-ONLY: SELECT/SHOW only. Safe on any server, any number of times.
 -- ============================================================================
 
-SELECT 'db_version.custom_version (expect 63 once a v63 binary has booted)' AS what, custom_version AS value FROM db_version LIMIT 1;
+SELECT 'db_version.custom_version (informational; no expected value)' AS what, custom_version AS value FROM db_version LIMIT 1;
 
 -- ---- v18 / v23: Beastlord spell merchant + scrolls -------------------------
 SELECT 'v23 bl merchant npc (expect 1)' AS what, COUNT(*) AS value FROM npc_types WHERE id = 1120001300;
@@ -133,3 +135,41 @@ SELECT 'v63 fabled_season inactive (expect 0)' AS what, active AS value FROM fab
 
 -- ---- v71: bazaar "Echo of X" blessings renamed to "Triune of X" --------------------------
 SELECT 'v71 triune blessings renamed (expect 9)' AS what, COUNT(*) AS value FROM spells_new WHERE id IN (17779,36856,43002,43003,43004,43005,43006,43007,43008) AND `name` LIKE 'Triune of %';
+
+-- ---- v80: vault / shared-loot player-schema state ---------------------------------------
+-- Table checks use information_schema only, so a missing table reports zero instead of
+-- aborting the audit. Exact column-name counts plus type/default/index checks identify a
+-- pre-existing table that CREATE TABLE IF NOT EXISTS could not repair.
+SELECT 'v80 nms_vault table (expect 1)' AS what, COUNT(*) AS value FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_vault' AND ENGINE = 'InnoDB' AND TABLE_COLLATION LIKE 'utf8mb4%';
+SELECT 'v80 nms_vault exact columns (expect 13)' AS what, COUNT(*) AS value FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_vault' AND COLUMN_NAME IN ('character_id','page','slot','item_id','charges','augment_one','augment_two','augment_three','augment_four','augment_five','augment_six','attuned','updated_at');
+SELECT 'v80 nms_vault total columns (expect 13)' AS what, COUNT(*) AS value FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_vault';
+SELECT 'v80 nms_vault non-null columns (expect 13)' AS what, COUNT(*) AS value FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_vault' AND IS_NULLABLE = 'NO';
+SELECT 'v80 nms_vault unsigned columns (expect 10)' AS what, COUNT(*) AS value FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_vault' AND COLUMN_NAME IN ('character_id','page','slot','item_id','augment_one','augment_two','augment_three','augment_four','augment_five','augment_six') AND COLUMN_TYPE LIKE '%unsigned%';
+SELECT 'v80 nms_vault numeric types (expect 12)' AS what, COUNT(*) AS value FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_vault' AND ((COLUMN_NAME IN ('character_id','item_id','augment_one','augment_two','augment_three','augment_four','augment_five','augment_six') AND DATA_TYPE = 'int') OR (COLUMN_NAME IN ('page','attuned') AND DATA_TYPE = 'tinyint') OR (COLUMN_NAME IN ('slot','charges') AND DATA_TYPE = 'smallint'));
+SELECT 'v80 nms_vault signed/default item-state columns (expect 8)' AS what, COUNT(*) AS value FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_vault' AND ((COLUMN_NAME = 'charges' AND DATA_TYPE = 'smallint' AND COLUMN_TYPE NOT LIKE '%unsigned%' AND COLUMN_DEFAULT = '1') OR (COLUMN_NAME IN ('augment_one','augment_two','augment_three','augment_four','augment_five','augment_six') AND DATA_TYPE = 'int' AND COLUMN_DEFAULT = '0') OR (COLUMN_NAME = 'attuned' AND DATA_TYPE = 'tinyint' AND COLUMN_TYPE NOT LIKE '%unsigned%' AND COLUMN_DEFAULT = '0'));
+SELECT 'v80 nms_vault timestamp (expect 1)' AS what, COUNT(*) AS value FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_vault' AND COLUMN_NAME = 'updated_at' AND DATA_TYPE = 'timestamp' AND IS_NULLABLE = 'NO' AND COLUMN_DEFAULT LIKE 'current_timestamp%' AND EXTRA LIKE '%on update current_timestamp%';
+SELECT 'v80 nms_vault primary key (expect character_id,page,slot)' AS what, GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX) AS value FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_vault' AND INDEX_NAME = 'PRIMARY';
+SELECT 'v80 nms_vault idx_char (expect character_id)' AS what, GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX) AS value FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_vault' AND INDEX_NAME = 'idx_char';
+
+SELECT 'v80 nms_vault_bag_items table (expect 1)' AS what, COUNT(*) AS value FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_vault_bag_items' AND ENGINE = 'InnoDB' AND TABLE_COLLATION LIKE 'utf8mb4%';
+SELECT 'v80 nms_vault_bag_items exact columns (expect 14)' AS what, COUNT(*) AS value FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_vault_bag_items' AND COLUMN_NAME IN ('character_id','page','slot','bag_slot','item_id','charges','augment_one','augment_two','augment_three','augment_four','augment_five','augment_six','attuned','updated_at');
+SELECT 'v80 nms_vault_bag_items total columns (expect 14)' AS what, COUNT(*) AS value FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_vault_bag_items';
+SELECT 'v80 nms_vault_bag_items non-null columns (expect 14)' AS what, COUNT(*) AS value FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_vault_bag_items' AND IS_NULLABLE = 'NO';
+SELECT 'v80 nms_vault_bag_items unsigned columns (expect 11)' AS what, COUNT(*) AS value FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_vault_bag_items' AND COLUMN_NAME IN ('character_id','page','slot','bag_slot','item_id','augment_one','augment_two','augment_three','augment_four','augment_five','augment_six') AND COLUMN_TYPE LIKE '%unsigned%';
+SELECT 'v80 nms_vault_bag_items numeric types (expect 13)' AS what, COUNT(*) AS value FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_vault_bag_items' AND ((COLUMN_NAME IN ('character_id','item_id','augment_one','augment_two','augment_three','augment_four','augment_five','augment_six') AND DATA_TYPE = 'int') OR (COLUMN_NAME IN ('page','attuned') AND DATA_TYPE = 'tinyint') OR (COLUMN_NAME IN ('slot','bag_slot','charges') AND DATA_TYPE = 'smallint'));
+SELECT 'v80 nms_vault_bag_items signed/default item-state columns (expect 8)' AS what, COUNT(*) AS value FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_vault_bag_items' AND ((COLUMN_NAME = 'charges' AND DATA_TYPE = 'smallint' AND COLUMN_TYPE NOT LIKE '%unsigned%' AND COLUMN_DEFAULT = '1') OR (COLUMN_NAME IN ('augment_one','augment_two','augment_three','augment_four','augment_five','augment_six') AND DATA_TYPE = 'int' AND COLUMN_DEFAULT = '0') OR (COLUMN_NAME = 'attuned' AND DATA_TYPE = 'tinyint' AND COLUMN_TYPE NOT LIKE '%unsigned%' AND COLUMN_DEFAULT = '0'));
+SELECT 'v80 nms_vault_bag_items timestamp (expect 1)' AS what, COUNT(*) AS value FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_vault_bag_items' AND COLUMN_NAME = 'updated_at' AND DATA_TYPE = 'timestamp' AND IS_NULLABLE = 'NO' AND COLUMN_DEFAULT LIKE 'current_timestamp%' AND EXTRA LIKE '%on update current_timestamp%';
+SELECT 'v80 nms_vault_bag_items primary key (expect character_id,page,slot,bag_slot)' AS what, GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX) AS value FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_vault_bag_items' AND INDEX_NAME = 'PRIMARY';
+SELECT 'v80 nms_vault_bag_items idx_bag (expect character_id,page,slot)' AS what, GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX) AS value FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_vault_bag_items' AND INDEX_NAME = 'idx_bag';
+
+SELECT 'v80 nms_loot_rules table (expect 1)' AS what, COUNT(*) AS value FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_loot_rules' AND ENGINE = 'InnoDB' AND TABLE_COLLATION LIKE 'utf8mb4%';
+SELECT 'v80 nms_loot_rules exact columns (expect 4)' AS what, COUNT(*) AS value FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_loot_rules' AND COLUMN_NAME IN ('character_id','item_id','action','updated_at');
+SELECT 'v80 nms_loot_rules total columns (expect 4)' AS what, COUNT(*) AS value FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_loot_rules';
+SELECT 'v80 nms_loot_rules non-null columns (expect 4)' AS what, COUNT(*) AS value FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_loot_rules' AND IS_NULLABLE = 'NO';
+SELECT 'v80 nms_loot_rules unsigned state columns (expect 3)' AS what, COUNT(*) AS value FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_loot_rules' AND ((COLUMN_NAME IN ('character_id','item_id') AND DATA_TYPE = 'int') OR (COLUMN_NAME = 'action' AND DATA_TYPE = 'tinyint')) AND COLUMN_TYPE LIKE '%unsigned%' AND IS_NULLABLE = 'NO';
+SELECT 'v80 nms_loot_rules timestamp (expect 1)' AS what, COUNT(*) AS value FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_loot_rules' AND COLUMN_NAME = 'updated_at' AND DATA_TYPE = 'timestamp' AND IS_NULLABLE = 'NO' AND COLUMN_DEFAULT LIKE 'current_timestamp%' AND EXTRA LIKE '%on update current_timestamp%';
+SELECT 'v80 nms_loot_rules primary key (expect character_id,item_id)' AS what, GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX) AS value FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_loot_rules' AND INDEX_NAME = 'PRIMARY';
+SELECT 'v80 vault/loot foreign keys (expect 0)' AS what, COUNT(*) AS value FROM information_schema.REFERENTIAL_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME IN ('nms_vault','nms_vault_bag_items','nms_loot_rules');
+
+SELECT 'v80 NMSLoot ruleset-1 rows (expect 7)' AS what, COUNT(*) AS value FROM rule_values WHERE ruleset_id = 1 AND rule_name IN ('Custom:NMSLootIconOffset','Custom:NMSLootSellPercent','Custom:NMSLootTributePercent','Custom:NMSLootAutoSellUnder','Custom:NMSLootDiscardWorthless','Custom:NMSLootAutoSellMinLevel','Custom:NMSLootRememberDecisions');
+SELECT 'v80 NMSLoot ruleset-1 values (informational; operator overrides preserved)' AS what, GROUP_CONCAT(CONCAT(rule_name, '=', rule_value) ORDER BY rule_name SEPARATOR '; ') AS value FROM rule_values WHERE ruleset_id = 1 AND rule_name IN ('Custom:NMSLootIconOffset','Custom:NMSLootSellPercent','Custom:NMSLootTributePercent','Custom:NMSLootAutoSellUnder','Custom:NMSLootDiscardWorthless','Custom:NMSLootAutoSellMinLevel','Custom:NMSLootRememberDecisions');

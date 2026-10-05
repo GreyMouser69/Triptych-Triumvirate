@@ -1324,6 +1324,17 @@ RULE_BOOL(Custom, FastCampBlockedInCombat, true, "When true, a player that any N
 // Seasonal
 RULE_INT(Custom,  	EnableSeasonalCharacters, 				0, "Set to Seasonal ID to track for current Seasonal characters, 0 to disable.")
 
+// BFE NMS loot consumes IconOffset, SellPercent, TributePercent, and
+// RememberDecisions. The other three declarations are retained for configuration
+// compatibility; the BFE implementation currently has no call sites for them.
+RULE_INT(Custom,    NMSLootIconOffset,                     0,       "Byte offset inside an NMS loot-offer entry for the item icon; 0 disables the diagnostic override.")
+RULE_INT(Custom,    NMSLootSellPercent,                    25,      "Percent of base item value paid by the NMS loot Sell action.")
+RULE_INT(Custom,    NMSLootTributePercent,                 100,     "Percent of item favor granted by the NMS loot Tribute action.")
+RULE_INT(Custom,    NMSLootAutoSellUnder,                  0,       "Reserved for NMS loot configuration compatibility; currently has no BFE call site.")
+RULE_BOOL(Custom,   NMSLootDiscardWorthless,               false,   "Reserved for NMS loot configuration compatibility; currently has no BFE call site.")
+RULE_INT(Custom,    NMSLootAutoSellMinLevel,               0,       "Reserved for NMS loot configuration compatibility; currently has no BFE call site.")
+RULE_BOOL(Custom,   NMSLootRememberDecisions,              false,   "Remember per-character NMS loot decisions for delayed server-side handling.")
+
 RULE_BOOL(Custom,   EnableGlobalLoot,                       true,    "Enable or disable global loot tables dynamically")
 RULE_BOOL(Custom,   PermanentServerBuffsEnabled,            false,   "Enable or disable permanent server buffs (spells 43002, 43005, 36856, 17779)")
 RULE_BOOL(Custom,   GuideAudit,                             true,    "Enable command auditing for guides/GMs of status 80 or higher.")

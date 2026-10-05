@@ -5165,6 +5165,110 @@ ALTER TABLE `character_data`
 		.content_schema_update = false,
 	},
 
+	ManifestEntry{
+		.version = 80,
+		.description = "2026_10_04_nms_vault_loot_storage",
+		// Guard: return one row while any required player-schema table or default-ruleset
+		// rule row is absent. The body is independently idempotent so a partial install is
+		// repaired without replacing an operator's existing rule values.
+		.check = R"NMSVAULTCHECK(
+SELECT 'missing'
+WHERE (
+	(SELECT COUNT(*)
+	 FROM information_schema.TABLES
+	 WHERE TABLE_SCHEMA = DATABASE()
+	   AND TABLE_TYPE = 'BASE TABLE'
+	   AND TABLE_NAME IN ('nms_vault', 'nms_vault_bag_items', 'nms_loot_rules'))
+	+
+	(SELECT COUNT(*)
+	 FROM `rule_values`
+	 WHERE `ruleset_id` = 1
+	   AND `rule_name` IN (
+		'Custom:NMSLootIconOffset',
+		'Custom:NMSLootSellPercent',
+		'Custom:NMSLootTributePercent',
+		'Custom:NMSLootAutoSellUnder',
+		'Custom:NMSLootDiscardWorthless',
+		'Custom:NMSLootAutoSellMinLevel',
+		'Custom:NMSLootRememberDecisions'
+	   ))
+) <> 10
+)NMSVAULTCHECK",
+		.condition = "not_empty",
+		.match = "",
+		.sql = R"NMSVAULT(
+-- ============================================================================
+-- NMS vault and shared-loot player state
+--
+-- The client windows are views over server-owned state. General/clicky/proc
+-- vault slots live in nms_vault, while a stored container's contents use a
+-- separate child table so every inner slot remains unambiguous. Charges, all
+-- six augment IDs, and attunement are retained for lossless accepted-item
+-- round trips. The loot-rules table stores optional per-character decisions.
+--
+-- CREATE TABLE IF NOT EXISTS and INSERT IGNORE are deliberate: this migration
+-- can repair a partial install without replacing tables, stored items, or an
+-- operator's existing ruleset-1 values. No foreign keys are used because the
+-- established quest cleanup and character lifecycle do not require them.
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS `nms_vault` (
+	`character_id` INT UNSIGNED NOT NULL,
+	`page` TINYINT UNSIGNED NOT NULL,
+	`slot` SMALLINT UNSIGNED NOT NULL,
+	`item_id` INT UNSIGNED NOT NULL,
+	`charges` SMALLINT NOT NULL DEFAULT 1,
+	`augment_one` INT UNSIGNED NOT NULL DEFAULT 0,
+	`augment_two` INT UNSIGNED NOT NULL DEFAULT 0,
+	`augment_three` INT UNSIGNED NOT NULL DEFAULT 0,
+	`augment_four` INT UNSIGNED NOT NULL DEFAULT 0,
+	`augment_five` INT UNSIGNED NOT NULL DEFAULT 0,
+	`augment_six` INT UNSIGNED NOT NULL DEFAULT 0,
+	`attuned` TINYINT(1) NOT NULL DEFAULT 0,
+	`updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+	PRIMARY KEY (`character_id`, `page`, `slot`),
+	KEY `idx_char` (`character_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `nms_vault_bag_items` (
+	`character_id` INT UNSIGNED NOT NULL,
+	`page` TINYINT UNSIGNED NOT NULL,
+	`slot` SMALLINT UNSIGNED NOT NULL,
+	`bag_slot` SMALLINT UNSIGNED NOT NULL,
+	`item_id` INT UNSIGNED NOT NULL,
+	`charges` SMALLINT NOT NULL DEFAULT 1,
+	`augment_one` INT UNSIGNED NOT NULL DEFAULT 0,
+	`augment_two` INT UNSIGNED NOT NULL DEFAULT 0,
+	`augment_three` INT UNSIGNED NOT NULL DEFAULT 0,
+	`augment_four` INT UNSIGNED NOT NULL DEFAULT 0,
+	`augment_five` INT UNSIGNED NOT NULL DEFAULT 0,
+	`augment_six` INT UNSIGNED NOT NULL DEFAULT 0,
+	`attuned` TINYINT(1) NOT NULL DEFAULT 0,
+	`updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+	PRIMARY KEY (`character_id`, `page`, `slot`, `bag_slot`),
+	KEY `idx_bag` (`character_id`, `page`, `slot`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `nms_loot_rules` (
+	`character_id` INT UNSIGNED NOT NULL,
+	`item_id` INT UNSIGNED NOT NULL,
+	`action` TINYINT UNSIGNED NOT NULL,
+	`updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+	PRIMARY KEY (`character_id`, `item_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT IGNORE INTO `rule_values` (`ruleset_id`, `rule_name`, `rule_value`, `notes`) VALUES
+	(1, 'Custom:NMSLootIconOffset', '0', 'Diagnostic byte offset for the NMS loot-offer item icon; 0 disables the override.'),
+	(1, 'Custom:NMSLootSellPercent', '25', 'Percent of base item value paid by the NMS loot Sell action.'),
+	(1, 'Custom:NMSLootTributePercent', '100', 'Percent of item favor granted by the NMS loot Tribute action.'),
+	(1, 'Custom:NMSLootAutoSellUnder', '0', 'Reserved NMS loot compatibility setting; the reference implementation has no call site.'),
+	(1, 'Custom:NMSLootDiscardWorthless', 'false', 'Reserved NMS loot compatibility setting; the reference implementation has no call site.'),
+	(1, 'Custom:NMSLootAutoSellMinLevel', '0', 'Reserved NMS loot compatibility setting; the reference implementation has no call site.'),
+	(1, 'Custom:NMSLootRememberDecisions', 'false', 'Apply remembered per-character NMS loot decisions after the pending-offer delay.');
+)NMSVAULT",
+		.content_schema_update = false,
+	},
+
 	// Used for testing
 
 	//	ManifestEntry{
