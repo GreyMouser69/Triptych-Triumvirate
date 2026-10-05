@@ -2751,6 +2751,17 @@ public:
 	const std::string &GetMailKey() const;
 	void ShowZoneShardMenu();
 	void Handle_OP_ChangePetName(const EQApplicationPacket *app);
+
+	static const int NMS_LOCKER_SLOTS = 3;
+	void LoadNMSVaultLocker();
+	void ClearNMSVaultLocker();
+	void CalcNMSVaultLockerBonuses(StatBonuses *bonuses);
+	void TryNMSVaultLockerProc(Mob *on, uint16 hand, float proc_chance, int level);
+	void ReloadNMSVaultLocker();
+	bool NMSVaultLockerCanUse(const EQ::ItemData *item);
+	bool NMSVaultLockerHasAugProc(int16 slot);
+	EQ::ItemInstance *m_nms_locker[NMS_LOCKER_SLOTS] = { nullptr, nullptr, nullptr };
+
 	bool IsFilteredAFKPacket(const EQApplicationPacket *p);
 	void CheckAutoIdleAFK(PlayerPositionUpdateClient_Struct *p);
 	void SyncWorldPositionsToClient(bool ignore_idle = false);

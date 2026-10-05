@@ -1652,6 +1652,11 @@ void Perl_Client_ReloadDynamicItem(Client* self, int16 slot_id)
 	self->ReloadDynamicItem(slot_id);
 }
 
+void Perl_Client_ReloadNMSVaultLocker(Client* self)
+{
+	self->ReloadNMSVaultLocker();
+}
+
 void Perl_Client_OpenLFGuildWindow(Client* self) // @categories Script Utility, Guild
 {
 	self->OpenLFGuildWindow();
@@ -3811,6 +3816,7 @@ void perl_register_client()
 	package.add("GetCorpseItemAt", &Perl_Client_GetCorpseItemAt);
 	package.add("GetCustomItemData", &Perl_Client_GetCustomItemData);
 	package.add("ReloadDynamicItem", &Perl_Client_ReloadDynamicItem);
+	package.add("ReloadNMSVaultLocker", &Perl_Client_ReloadNMSVaultLocker);
 	package.add("GetDeityBitmask", &Perl_Client_GetDeityBitmask);
 	package.add("GetDiscSlotBySpellID", &Perl_Client_GetDiscSlotBySpellID);
 	package.add("GetDisciplineTimer", &Perl_Client_GetDisciplineTimer);

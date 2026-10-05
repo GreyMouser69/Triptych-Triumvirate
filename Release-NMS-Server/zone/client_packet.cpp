@@ -654,6 +654,7 @@ void Client::CompleteConnect()
 	if (RuleB(Custom, MulticlassingEnabled)) {
 		m_pp.classes = Strings::ToInt(GetBucket("GestaltClasses"), GetPlayerClassBit(m_pp.class_));
 	}
+	LoadNMSVaultLocker();
 
 	// Load Kill Counters
 	auto kdb = AccountKillCountsRepository::GetWhere(database, fmt::format("account_id = {}", account_id));

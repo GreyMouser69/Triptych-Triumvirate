@@ -71,6 +71,7 @@ void Client::CalcBonuses()
 {
 	memset(&itembonuses, 0, sizeof(StatBonuses));
 	CalcItemBonuses(&itembonuses);
+	CalcNMSVaultLockerBonuses(&itembonuses);
 	CalcHeroicBonuses(&itembonuses);
 	CalcEdibleBonuses(&itembonuses);
 	CalcSpellBonuses(&spellbonuses);

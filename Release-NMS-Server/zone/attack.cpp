@@ -5548,6 +5548,10 @@ void Mob::TryWeaponProc(const EQ::ItemInstance *inst, const EQ::ItemData *weapon
 	}
 	// TODO: Powersource procs -- powersource procs are from augs so shouldn't need anything extra
 
+	if (!proced && IsClient()) {
+		CastToClient()->TryNMSVaultLockerProc(on, hand, ProcChance, ourlevel);
+	}
+
 	return;
 }
 
