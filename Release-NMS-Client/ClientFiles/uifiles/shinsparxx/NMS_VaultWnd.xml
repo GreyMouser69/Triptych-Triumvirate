@@ -1,0 +1,399 @@
+<?xml version="1.0" encoding="us-ascii"?>
+<XML ID="EQInterfaceDefinitionLanguage">
+  <Schema xmlns="EverQuestData" xmlns:dt="EverQuestDataTypes" />
+  <TextureInfo item="EQLS_window_pieces_01.tga">
+    <Size>
+      <CX>256</CX>
+      <CY>256</CY>
+    </Size>
+  </TextureInfo>
+
+<!-- Shared button animation set, same EQLS_window_pieces slices the waypoint
+     window uses. Naming and offsets follow NMS_WaypointsWnd.xml so the two custom
+     windows look identical; a wrong slice here renders a blank button, so they are
+     copied verbatim rather than guessed. -->
+<Ui2DAnimation item = "A_NMSVaultBtnNormal">
+  <Cycle>true</Cycle>
+  <Frames>
+    <Texture>EQLS_window_pieces_01.tga</Texture>
+    <Location><X>0</X><Y>34</Y></Location>
+    <Size><CX>244</CX><CY>32</CY></Size>
+    <Hotspot><X>0</X><Y>0</Y></Hotspot>
+    <Duration>1000</Duration>
+  </Frames>
+</Ui2DAnimation>
+<Ui2DAnimation item = "A_NMSVaultBtnHover">
+  <Cycle>true</Cycle>
+  <Frames>
+    <Texture>EQLS_window_pieces_01.tga</Texture>
+    <Location><X>0</X><Y>65</Y></Location>
+    <Size><CX>244</CX><CY>32</CY></Size>
+    <Hotspot><X>0</X><Y>0</Y></Hotspot>
+    <Duration>1000</Duration>
+  </Frames>
+</Ui2DAnimation>
+<Ui2DAnimation item = "A_NMSVaultBtnPressed">
+  <Cycle>true</Cycle>
+  <Frames>
+    <Texture>EQLS_window_pieces_01.tga</Texture>
+    <Location><X>0</X><Y>96</Y></Location>
+    <Size><CX>244</CX><CY>32</CY></Size>
+    <Hotspot><X>0</X><Y>0</Y></Hotspot>
+    <Duration>1000</Duration>
+  </Frames>
+</Ui2DAnimation>
+<Ui2DAnimation item = "A_NMSVaultBtnPressedHover">
+  <Cycle>true</Cycle>
+  <Frames>
+    <Texture>EQLS_window_pieces_01.tga</Texture>
+    <Location><X>0</X><Y>158</Y></Location>
+    <Size><CX>244</CX><CY>32</CY></Size>
+    <Hotspot><X>0</X><Y>0</Y></Hotspot>
+    <Duration>1000</Duration>
+  </Frames>
+</Ui2DAnimation>
+<Ui2DAnimation item = "A_NMSVaultBtnSmallNormal">
+  <Cycle>true</Cycle>
+  <Frames>
+    <Texture>EQLS_window_pieces_01.tga</Texture>
+    <Location><X>8</X><Y>34</Y></Location>
+    <Size><CX>40</CX><CY>32</CY></Size>
+    <Hotspot><X>0</X><Y>0</Y></Hotspot>
+    <Duration>1000</Duration>
+  </Frames>
+</Ui2DAnimation>
+<Ui2DAnimation item = "A_NMSVaultBtnSmallHover">
+  <Cycle>true</Cycle>
+  <Frames>
+    <Texture>EQLS_window_pieces_01.tga</Texture>
+    <Location><X>8</X><Y>65</Y></Location>
+    <Size><CX>40</CX><CY>32</CY></Size>
+    <Hotspot><X>0</X><Y>0</Y></Hotspot>
+    <Duration>1000</Duration>
+  </Frames>
+</Ui2DAnimation>
+<Ui2DAnimation item = "A_NMSVaultBtnSmallPressed">
+  <Cycle>true</Cycle>
+  <Frames>
+    <Texture>EQLS_window_pieces_01.tga</Texture>
+    <Location><X>8</X><Y>96</Y></Location>
+    <Size><CX>40</CX><CY>32</CY></Size>
+    <Hotspot><X>0</X><Y>0</Y></Hotspot>
+    <Duration>1000</Duration>
+  </Frames>
+</Ui2DAnimation>
+<Ui2DAnimation item = "A_NMSVaultBtnSmallDisabled">
+  <Cycle>true</Cycle>
+  <Frames>
+    <Texture>EQLS_window_pieces_01.tga</Texture>
+    <Location><X>8</X><Y>158</Y></Location>
+    <Size><CX>40</CX><CY>32</CY></Size>
+    <Hotspot><X>0</X><Y>0</Y></Hotspot>
+    <Duration>1000</Duration>
+  </Frames>
+</Ui2DAnimation>
+
+<!-- Top-level vault rows. Content is filled entirely from the Patch 7 model at
+     runtime; the width-0 leading column is the standard trick this fork already
+     uses in NMS_WaypointsWnd.xml to get a clean header gutter. -->
+<Listbox item="NMSVaultItemList">
+  <ScreenID>NMSVaultItemList</ScreenID>
+  <DrawTemplate>WDT_Inner</DrawTemplate>
+  <RelativePosition>true</RelativePosition>
+  <AutoStretch>false</AutoStretch>
+  <Location><X>8</X><Y>40</Y></Location>
+  <Size><CX>400</CX><CY>200</CY></Size>
+  <Style_Border>true</Style_Border>
+  <Style_VScroll>true</Style_VScroll>
+  <Style_AutoVScroll>true</Style_AutoVScroll>
+  <Columns>
+    <Width>0</Width>
+    <Heading></Heading>
+  </Columns>
+  <Columns>
+    <Width>400</Width>
+    <Heading>Vault slot</Heading>
+  </Columns>
+</Listbox>
+
+<!-- Selected container contents. Populated from the model bag_items only. -->
+<Listbox item="NMSVaultContentsList">
+  <ScreenID>NMSVaultContentsList</ScreenID>
+  <DrawTemplate>WDT_Inner</DrawTemplate>
+  <RelativePosition>true</RelativePosition>
+  <AutoStretch>false</AutoStretch>
+  <Location><X>8</X><Y>268</Y></Location>
+  <Size><CX>400</CX><CY>88</CY></Size>
+  <Style_Border>true</Style_Border>
+  <Style_VScroll>true</Style_VScroll>
+  <Style_AutoVScroll>true</Style_AutoVScroll>
+  <Columns>
+    <Width>0</Width>
+    <Heading></Heading>
+  </Columns>
+  <Columns>
+    <Width>400</Width>
+    <Heading>Container</Heading>
+  </Columns>
+</Listbox>
+
+<!-- Page indicator. Its text is fixed at load time because this client exposes no
+     runtime label/button text setter; the authoritative current page is printed
+     to chat and every row is prefixed with its global slot number. -->
+<Button item="NMSVaultPageIndicator">
+  <ScreenID>NMSVaultPageIndicator</ScreenID>
+  <Font>4</Font>
+  <RelativePosition>true</RelativePosition>
+  <Location><X>8</X><Y>8</Y></Location>
+  <Size><CX>400</CX><CY>32</CY></Size>
+  <Style_Checkbox>false</Style_Checkbox>
+  <Text>Dimensional Pocket Vault - pages 1-9, slots 1-83</Text>
+  <TextColor><R>255</R><G>218</G><B>96</B></TextColor>
+  <ButtonDrawTemplate>
+    <Normal>A_NMSVaultBtnNormal</Normal>
+    <Pressed>A_NMSVaultBtnPressed</Pressed>
+    <Flyby>A_NMSVaultBtnHover</Flyby>
+    <PressedFlyby>A_NMSVaultBtnPressedHover</PressedFlyby>
+  </ButtonDrawTemplate>
+</Button>
+
+<Button item="NMSVaultPage1">
+  <ScreenID>NMSVaultPage1</ScreenID>
+  <Font>4</Font>
+  <RelativePosition>true</RelativePosition>
+  <Location><X>8</X><Y>360</Y></Location>
+  <Size><CX>40</CX><CY>32</CY></Size>
+  <Style_Checkbox>false</Style_Checkbox>
+  <Text>1</Text>
+  <TextColor><R>255</R><G>255</G><B>255</B></TextColor>
+  <ButtonDrawTemplate>
+    <Normal>A_NMSVaultBtnSmallNormal</Normal>
+    <Pressed>A_NMSVaultBtnSmallPressed</Pressed>
+    <Flyby>A_NMSVaultBtnSmallHover</Flyby>
+    <Disabled>A_NMSVaultBtnSmallDisabled</Disabled>
+  </ButtonDrawTemplate>
+</Button>
+<Button item="NMSVaultPage2">
+  <ScreenID>NMSVaultPage2</ScreenID>
+  <Font>4</Font>
+  <RelativePosition>true</RelativePosition>
+  <Location><X>52</X><Y>360</Y></Location>
+  <Size><CX>40</CX><CY>32</CY></Size>
+  <Style_Checkbox>false</Style_Checkbox>
+  <Text>2</Text>
+  <TextColor><R>255</R><G>255</G><B>255</B></TextColor>
+  <ButtonDrawTemplate>
+    <Normal>A_NMSVaultBtnSmallNormal</Normal>
+    <Pressed>A_NMSVaultBtnSmallPressed</Pressed>
+    <Flyby>A_NMSVaultBtnSmallHover</Flyby>
+    <Disabled>A_NMSVaultBtnSmallDisabled</Disabled>
+  </ButtonDrawTemplate>
+</Button>
+<Button item="NMSVaultPage3">
+  <ScreenID>NMSVaultPage3</ScreenID>
+  <Font>4</Font>
+  <RelativePosition>true</RelativePosition>
+  <Location><X>96</X><Y>360</Y></Location>
+  <Size><CX>40</CX><CY>32</CY></Size>
+  <Style_Checkbox>false</Style_Checkbox>
+  <Text>3</Text>
+  <TextColor><R>255</R><G>255</G><B>255</B></TextColor>
+  <ButtonDrawTemplate>
+    <Normal>A_NMSVaultBtnSmallNormal</Normal>
+    <Pressed>A_NMSVaultBtnSmallPressed</Pressed>
+    <Flyby>A_NMSVaultBtnSmallHover</Flyby>
+    <Disabled>A_NMSVaultBtnSmallDisabled</Disabled>
+  </ButtonDrawTemplate>
+</Button>
+<Button item="NMSVaultPage4">
+  <ScreenID>NMSVaultPage4</ScreenID>
+  <Font>4</Font>
+  <RelativePosition>true</RelativePosition>
+  <Location><X>140</X><Y>360</Y></Location>
+  <Size><CX>40</CX><CY>32</CY></Size>
+  <Style_Checkbox>false</Style_Checkbox>
+  <Text>4</Text>
+  <TextColor><R>255</R><G>255</G><B>255</B></TextColor>
+  <ButtonDrawTemplate>
+    <Normal>A_NMSVaultBtnSmallNormal</Normal>
+    <Pressed>A_NMSVaultBtnSmallPressed</Pressed>
+    <Flyby>A_NMSVaultBtnSmallHover</Flyby>
+    <Disabled>A_NMSVaultBtnSmallDisabled</Disabled>
+  </ButtonDrawTemplate>
+</Button>
+<Button item="NMSVaultPage5">
+  <ScreenID>NMSVaultPage5</ScreenID>
+  <Font>4</Font>
+  <RelativePosition>true</RelativePosition>
+  <Location><X>184</X><Y>360</Y></Location>
+  <Size><CX>40</CX><CY>32</CY></Size>
+  <Style_Checkbox>false</Style_Checkbox>
+  <Text>5</Text>
+  <TextColor><R>255</R><G>255</G><B>255</B></TextColor>
+  <ButtonDrawTemplate>
+    <Normal>A_NMSVaultBtnSmallNormal</Normal>
+    <Pressed>A_NMSVaultBtnSmallPressed</Pressed>
+    <Flyby>A_NMSVaultBtnSmallHover</Flyby>
+    <Disabled>A_NMSVaultBtnSmallDisabled</Disabled>
+  </ButtonDrawTemplate>
+</Button>
+<Button item="NMSVaultPage6">
+  <ScreenID>NMSVaultPage6</ScreenID>
+  <Font>4</Font>
+  <RelativePosition>true</RelativePosition>
+  <Location><X>228</X><Y>360</Y></Location>
+  <Size><CX>40</CX><CY>32</CY></Size>
+  <Style_Checkbox>false</Style_Checkbox>
+  <Text>6</Text>
+  <TextColor><R>255</R><G>255</G><B>255</B></TextColor>
+  <ButtonDrawTemplate>
+    <Normal>A_NMSVaultBtnSmallNormal</Normal>
+    <Pressed>A_NMSVaultBtnSmallPressed</Pressed>
+    <Flyby>A_NMSVaultBtnSmallHover</Flyby>
+    <Disabled>A_NMSVaultBtnSmallDisabled</Disabled>
+  </ButtonDrawTemplate>
+</Button>
+<Button item="NMSVaultPage7">
+  <ScreenID>NMSVaultPage7</ScreenID>
+  <Font>4</Font>
+  <RelativePosition>true</RelativePosition>
+  <Location><X>272</X><Y>360</Y></Location>
+  <Size><CX>40</CX><CY>32</CY></Size>
+  <Style_Checkbox>false</Style_Checkbox>
+  <Text>7</Text>
+  <TextColor><R>255</R><G>218</G><B>96</B></TextColor>
+  <ButtonDrawTemplate>
+    <Normal>A_NMSVaultBtnSmallNormal</Normal>
+    <Pressed>A_NMSVaultBtnSmallPressed</Pressed>
+    <Flyby>A_NMSVaultBtnSmallHover</Flyby>
+    <Disabled>A_NMSVaultBtnSmallDisabled</Disabled>
+  </ButtonDrawTemplate>
+</Button>
+<Button item="NMSVaultPage8">
+  <ScreenID>NMSVaultPage8</ScreenID>
+  <Font>4</Font>
+  <RelativePosition>true</RelativePosition>
+  <Location><X>316</X><Y>360</Y></Location>
+  <Size><CX>40</CX><CY>32</CY></Size>
+  <Style_Checkbox>false</Style_Checkbox>
+  <Text>8</Text>
+  <TextColor><R>255</R><G>218</G><B>96</B></TextColor>
+  <ButtonDrawTemplate>
+    <Normal>A_NMSVaultBtnSmallNormal</Normal>
+    <Pressed>A_NMSVaultBtnSmallPressed</Pressed>
+    <Flyby>A_NMSVaultBtnSmallHover</Flyby>
+    <Disabled>A_NMSVaultBtnSmallDisabled</Disabled>
+  </ButtonDrawTemplate>
+</Button>
+<Button item="NMSVaultPage9">
+  <ScreenID>NMSVaultPage9</ScreenID>
+  <Font>4</Font>
+  <RelativePosition>true</RelativePosition>
+  <Location><X>360</X><Y>360</Y></Location>
+  <Size><CX>40</CX><CY>32</CY></Size>
+  <Style_Checkbox>false</Style_Checkbox>
+  <Text>9</Text>
+  <TextColor><R>255</R><G>160</G><B>96</B></TextColor>
+  <ButtonDrawTemplate>
+    <Normal>A_NMSVaultBtnSmallNormal</Normal>
+    <Pressed>A_NMSVaultBtnSmallPressed</Pressed>
+    <Flyby>A_NMSVaultBtnSmallHover</Flyby>
+    <Disabled>A_NMSVaultBtnSmallDisabled</Disabled>
+  </ButtonDrawTemplate>
+</Button>
+
+<Button item="NMSVaultPrevPage">
+  <ScreenID>NMSVaultPrevPage</ScreenID>
+  <Font>4</Font>
+  <RelativePosition>true</RelativePosition>
+  <Location><X>8</X><Y>398</Y></Location>
+  <Size><CX>120</CX><CY>32</CY></Size>
+  <Style_Checkbox>false</Style_Checkbox>
+  <Text>&lt; Page</Text>
+  <TextColor><R>255</R><G>255</G><B>255</B></TextColor>
+  <ButtonDrawTemplate>
+    <Normal>A_NMSVaultBtnNormal</Normal>
+    <Pressed>A_NMSVaultBtnPressed</Pressed>
+    <Flyby>A_NMSVaultBtnHover</Flyby>
+    <Disabled>A_NMSVaultBtnSmallDisabled</Disabled>
+  </ButtonDrawTemplate>
+</Button>
+<Button item="NMSVaultNextPage">
+  <ScreenID>NMSVaultNextPage</ScreenID>
+  <Font>4</Font>
+  <RelativePosition>true</RelativePosition>
+  <Location><X>136</X><Y>398</Y></Location>
+  <Size><CX>120</CX><CY>32</CY></Size>
+  <Style_Checkbox>false</Style_Checkbox>
+  <Text>Page &gt;</Text>
+  <TextColor><R>255</R><G>255</G><B>255</B></TextColor>
+  <ButtonDrawTemplate>
+    <Normal>A_NMSVaultBtnNormal</Normal>
+    <Pressed>A_NMSVaultBtnPressed</Pressed>
+    <Flyby>A_NMSVaultBtnHover</Flyby>
+    <Disabled>A_NMSVaultBtnSmallDisabled</Disabled>
+  </ButtonDrawTemplate>
+</Button>
+<Button item="NMSVaultWithdraw">
+  <ScreenID>NMSVaultWithdraw</ScreenID>
+  <Font>4</Font>
+  <RelativePosition>true</RelativePosition>
+  <Location><X>264</X><Y>398</Y></Location>
+  <Size><CX>80</CX><CY>32</CY></Size>
+  <Style_Checkbox>false</Style_Checkbox>
+  <Text>Withdraw</Text>
+  <TextColor><R>255</R><G>255</G><B>255</B></TextColor>
+  <ButtonDrawTemplate>
+    <Normal>A_NMSVaultBtnNormal</Normal>
+    <Pressed>A_NMSVaultBtnPressed</Pressed>
+    <Flyby>A_NMSVaultBtnHover</Flyby>
+    <Disabled>A_NMSVaultBtnSmallDisabled</Disabled>
+  </ButtonDrawTemplate>
+</Button>
+<Button item="NMSVaultClose">
+  <ScreenID>NMSVaultClose</ScreenID>
+  <Font>4</Font>
+  <RelativePosition>true</RelativePosition>
+  <Location><X>352</X><Y>398</Y></Location>
+  <Size><CX>56</CX><CY>32</CY></Size>
+  <Style_Checkbox>false</Style_Checkbox>
+  <Text>Close</Text>
+  <TextColor><R>255</R><G>255</G><B>255</B></TextColor>
+  <ButtonDrawTemplate>
+    <Normal>A_NMSVaultBtnNormal</Normal>
+    <Pressed>A_NMSVaultBtnPressed</Pressed>
+    <Flyby>A_NMSVaultBtnHover</Flyby>
+    <Disabled>A_NMSVaultBtnSmallDisabled</Disabled>
+  </ButtonDrawTemplate>
+</Button>
+
+  <Screen item="NMSVaultWnd">
+    <RelativePosition>false</RelativePosition>
+    <Location><X>16</X><Y>16</Y></Location>
+    <Size><CX>416</CX><CY>440</CY></Size>
+    <Text>Dimensional Pocket Vault</Text>
+    <Style_VScroll>false</Style_VScroll>
+    <Style_Border>true</Style_Border>
+    <Style_Transparent>false</Style_Transparent>
+    <DrawTemplate>WDT_Filigree</DrawTemplate>
+    <Style_Titlebar>true</Style_Titlebar>
+    <Style_Closebox>true</Style_Closebox>
+    <Escapable>true</Escapable>
+    <Pieces>NMSVaultPageIndicator</Pieces>
+    <Pieces>NMSVaultItemList</Pieces>
+    <Pieces>NMSVaultContentsList</Pieces>
+    <Pieces>NMSVaultPage1</Pieces>
+    <Pieces>NMSVaultPage2</Pieces>
+    <Pieces>NMSVaultPage3</Pieces>
+    <Pieces>NMSVaultPage4</Pieces>
+    <Pieces>NMSVaultPage5</Pieces>
+    <Pieces>NMSVaultPage6</Pieces>
+    <Pieces>NMSVaultPage7</Pieces>
+    <Pieces>NMSVaultPage8</Pieces>
+    <Pieces>NMSVaultPage9</Pieces>
+    <Pieces>NMSVaultPrevPage</Pieces>
+    <Pieces>NMSVaultNextPage</Pieces>
+    <Pieces>NMSVaultWithdraw</Pieces>
+    <Pieces>NMSVaultClose</Pieces>
+  </Screen>
+</XML>

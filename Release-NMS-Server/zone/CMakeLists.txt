@@ -104,6 +104,7 @@ SET(zone_sources
     titles.cpp
     nms_waypoints.cpp
     nms_vault_locker.cpp
+    nms_lootoffer.cpp
     tradeskills.cpp
     trading.cpp
     trap.cpp

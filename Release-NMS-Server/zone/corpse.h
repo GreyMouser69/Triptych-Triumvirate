@@ -202,6 +202,11 @@ public:
 	uint32 GetItemIDBySlot(uint16 loot_slot);
 	uint16 GetFirstLootSlotByItemID(uint32 item_id);
 	std::vector<int> GetLootList();
+	// Like GetLootList(), but does NOT de-duplicate and carries stack sizes.
+	// Each element is "item_id:charges". GetLootList() collapses duplicate
+	// item ids into one entry and drops charges entirely, which loses items
+	// for any corpse holding two of the same drop or a stack.
+	std::vector<std::string> GetLootEntries();
 	inline const LootItems &GetLootItems() { return m_item_list; }
 	void LootCorpseItem(Client *c, const EQApplicationPacket *app);
 	void EndLoot(Client *c, const EQApplicationPacket *app);

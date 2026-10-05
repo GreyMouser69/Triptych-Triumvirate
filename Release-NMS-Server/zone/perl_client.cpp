@@ -1659,6 +1659,50 @@ void Perl_Client_ReloadNMSVaultLocker(Client* self)
 	self->ReloadNMSVaultLocker();
 }
 
+// NMS-LOCAL: client DLL loot-offer protocol -- quest-layer entry points.
+// QueueNMSLootOffer queues the row without transmitting, so a script may offer
+// several items and then call SendNMSLootPending() once; the client REPLACES its
+// Pending tab with every 0x140A it receives, so a send is never per-item.
+void Perl_Client_QueueNMSLootOffer(Client* self, std::string from_player, uint32 item_id, std::string item_name, uint32 offer_id) // @categories Script Utility
+{
+	self->QueueNMSLootOffer(from_player.c_str(), item_id, item_name.c_str(), offer_id, 1);
+}
+
+void Perl_Client_QueueNMSLootOffer(Client* self, std::string from_player, uint32 item_id, std::string item_name, uint32 offer_id, uint32 charges) // @categories Script Utility
+{
+	self->QueueNMSLootOffer(from_player.c_str(), item_id, item_name.c_str(), offer_id, static_cast<uint16>(charges));
+}
+
+void Perl_Client_SendNMSLootPending(Client* self) // @categories Script Utility
+{
+	self->SendNMSLootPending();
+}
+
+void Perl_Client_FlushNMSLootOffers(Client* self) // @categories Script Utility
+{
+	self->FlushNMSLootOffers();
+}
+
+void Perl_Client_SendNMSLooterList(Client* self, std::string names_csv) // @categories Script Utility
+{
+	// Comma-separated names, capped at 20 here as well as in SendNMSLooterList,
+	// and empty entries are skipped so a trailing comma is harmless.
+	std::vector<std::string> list;
+	size_t start = 0;
+	while (start <= names_csv.size() && list.size() < 20) {
+		const size_t comma = names_csv.find(',', start);
+		std::string name = names_csv.substr(start, comma == std::string::npos ? std::string::npos : comma - start);
+		if (!name.empty()) {
+			list.emplace_back(name);
+		}
+		if (comma == std::string::npos) {
+			break;
+		}
+		start = comma + 1;
+	}
+	self->SendNMSLooterList(list);
+}
+
 /*
  * NMS-LOCAL: NPC speech delivered to ONE client.
  *
@@ -3848,6 +3892,11 @@ void perl_register_client()
 	package.add("GetCustomItemData", &Perl_Client_GetCustomItemData);
 	package.add("ReloadDynamicItem", &Perl_Client_ReloadDynamicItem);
 	package.add("ReloadNMSVaultLocker", &Perl_Client_ReloadNMSVaultLocker);
+package.add("QueueNMSLootOffer", (void(*)(Client*, std::string, uint32, std::string, uint32))&Perl_Client_QueueNMSLootOffer);
+package.add("QueueNMSLootOffer", (void(*)(Client*, std::string, uint32, std::string, uint32, uint32))&Perl_Client_QueueNMSLootOffer);
+package.add("SendNMSLootPending", &Perl_Client_SendNMSLootPending);
+package.add("FlushNMSLootOffers", &Perl_Client_FlushNMSLootOffers);
+package.add("SendNMSLooterList", &Perl_Client_SendNMSLooterList);
 	package.add("GetDeityBitmask", &Perl_Client_GetDeityBitmask);
 	package.add("GetDiscSlotBySpellID", &Perl_Client_GetDiscSlotBySpellID);
 	package.add("GetDisciplineTimer", &Perl_Client_GetDisciplineTimer);

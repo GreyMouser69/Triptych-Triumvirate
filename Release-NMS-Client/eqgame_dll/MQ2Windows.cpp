@@ -21,6 +21,8 @@ GNU General Public License for more details.
 
 #include "MQ2Main.h"
 #include "waypoint_window.h"
+#include "nms_vault_window.h"
+#include "nms_loot_window.h"
 #include <map>
 #include <string>
 #include <algorithm>
@@ -209,7 +211,9 @@ void InitializeMQ2Windows()
 {
     int i;
     DebugSpew("Initializing MQ2 Windows");
+    NmsLootWnd::Initialize();
     WaypointsWnd::Initialize();
+    NmsVaultWnd::Initialize();
 
     //extern PCHAR szItemSlot[];
 
@@ -305,6 +309,8 @@ void ShutdownMQ2Windows()
 {
     DebugSpew("Shutting down MQ2 Windows");
     WaypointsWnd::Shutdown();
+    NmsVaultWnd::Shutdown();
+    NmsLootWnd::Shutdown();
 #ifndef ISXEQ
     RemoveCommand("/windows");
     RemoveCommand("/notify");

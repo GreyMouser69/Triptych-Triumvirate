@@ -1,0 +1,311 @@
+<?xml version="1.0" encoding="us-ascii"?>
+<XML ID="EQInterfaceDefinitionLanguage">
+  <Schema xmlns="EverQuestData" xmlns:dt="EverQuestDataTypes" />
+  <TextureInfo item="EQLS_window_pieces_01.tga">
+    <Size>
+      <CX>256</CX>
+      <CY>256</CY>
+    </Size>
+  </TextureInfo>
+
+<!-- Shared button animations. Slices and naming are copied verbatim from
+     NMS_WaypointsWnd.xml (and so from NMS_VaultWnd.xml), because a wrong offset
+     renders a blank button rather than an error. -->
+<Ui2DAnimation item = "A_NMSLootBtnNormal">
+  <Cycle>true</Cycle>
+  <Frames>
+    <Texture>EQLS_window_pieces_01.tga</Texture>
+    <Location><X>0</X><Y>34</Y></Location>
+    <Size><CX>244</CX><CY>32</CY></Size>
+    <Hotspot><X>0</X><Y>0</Y></Hotspot>
+    <Duration>1000</Duration>
+  </Frames>
+</Ui2DAnimation>
+<Ui2DAnimation item = "A_NMSLootBtnHover">
+  <Cycle>true</Cycle>
+  <Frames>
+    <Texture>EQLS_window_pieces_01.tga</Texture>
+    <Location><X>0</X><Y>65</Y></Location>
+    <Size><CX>244</CX><CY>32</CY></Size>
+    <Hotspot><X>0</X><Y>0</Y></Hotspot>
+    <Duration>1000</Duration>
+  </Frames>
+</Ui2DAnimation>
+<Ui2DAnimation item = "A_NMSLootBtnPressed">
+  <Cycle>true</Cycle>
+  <Frames>
+    <Texture>EQLS_window_pieces_01.tga</Texture>
+    <Location><X>0</X><Y>96</Y></Location>
+    <Size><CX>244</CX><CY>32</CY></Size>
+    <Hotspot><X>0</X><Y>0</Y></Hotspot>
+    <Duration>1000</Duration>
+  </Frames>
+</Ui2DAnimation>
+<Ui2DAnimation item = "A_NMSLootBtnPressedHover">
+  <Cycle>true</Cycle>
+  <Frames>
+    <Texture>EQLS_window_pieces_01.tga</Texture>
+    <Location><X>0</X><Y>158</Y></Location>
+    <Size><CX>244</CX><CY>32</CY></Size>
+    <Hotspot><X>0</X><Y>0</Y></Hotspot>
+    <Duration>1000</Duration>
+  </Frames>
+</Ui2DAnimation>
+<Ui2DAnimation item = "A_NMSLootBtnSmallNormal">
+  <Cycle>true</Cycle>
+  <Frames>
+    <Texture>EQLS_window_pieces_01.tga</Texture>
+    <Location><X>8</X><Y>34</Y></Location>
+    <Size><CX>112</CX><CY>32</CY></Size>
+    <Hotspot><X>0</X><Y>0</Y></Hotspot>
+    <Duration>1000</Duration>
+  </Frames>
+</Ui2DAnimation>
+<Ui2DAnimation item = "A_NMSLootBtnSmallHover">
+  <Cycle>true</Cycle>
+  <Frames>
+    <Texture>EQLS_window_pieces_01.tga</Texture>
+    <Location><X>8</X><Y>65</Y></Location>
+    <Size><CX>112</CX><CY>32</CY></Size>
+    <Hotspot><X>0</X><Y>0</Y></Hotspot>
+    <Duration>1000</Duration>
+  </Frames>
+</Ui2DAnimation>
+<Ui2DAnimation item = "A_NMSLootBtnSmallPressed">
+  <Cycle>true</Cycle>
+  <Frames>
+    <Texture>EQLS_window_pieces_01.tga</Texture>
+    <Location><X>8</X><Y>96</Y></Location>
+    <Size><CX>112</CX><CY>32</CY></Size>
+    <Hotspot><X>0</X><Y>0</Y></Hotspot>
+    <Duration>1000</Duration>
+  </Frames>
+</Ui2DAnimation>
+<Ui2DAnimation item = "A_NMSLootBtnSmallDisabled">
+  <Cycle>true</Cycle>
+  <Frames>
+    <Texture>EQLS_window_pieces_01.tga</Texture>
+    <Location><X>8</X><Y>158</Y></Location>
+    <Size><CX>112</CX><CY>32</CY></Size>
+    <Hotspot><X>0</X><Y>0</Y></Hotspot>
+    <Duration>1000</Duration>
+  </Frames>
+</Ui2DAnimation>
+
+<!-- Pending decision queue. Every row is read from Patch 7's authoritative model;
+     nothing here is parsed or cached by the window. -->
+<Listbox item="NMSLootPendingList">
+  <ScreenID>NMSLootPendingList</ScreenID>
+  <DrawTemplate>WDT_Inner</DrawTemplate>
+  <RelativePosition>true</RelativePosition>
+  <AutoStretch>false</AutoStretch>
+  <Location><X>8</X><Y>40</Y></Location>
+  <Size><CX>456</CX><CY>176</CY></Size>
+  <Style_Border>true</Style_Border>
+  <Style_VScroll>true</Style_VScroll>
+  <Style_AutoVScroll>true</Style_AutoVScroll>
+  <Columns>
+    <Width>0</Width>
+    <Heading></Heading>
+  </Columns>
+  <Columns>
+    <Width>456</Width>
+    <Heading>Pending loot</Heading>
+  </Columns>
+</Listbox>
+
+<!-- Looter roster: the only legitimate Pass recipients. Replaced wholesale on
+     every 0x140D, capped at 20 by Patch 7 and the server. -->
+<Listbox item="NMSLootRosterList">
+  <ScreenID>NMSLootRosterList</ScreenID>
+  <DrawTemplate>WDT_Inner</DrawTemplate>
+  <RelativePosition>true</RelativePosition>
+  <AutoStretch>false</AutoStretch>
+  <Location><X>8</X><Y>244</Y></Location>
+  <Size><CX>456</CX><CY>88</CY></Size>
+  <Style_Border>true</Style_Border>
+  <Style_VScroll>true</Style_VScroll>
+  <Style_AutoVScroll>true</Style_AutoVScroll>
+  <Columns>
+    <Width>0</Width>
+    <Heading></Heading>
+  </Columns>
+  <Columns>
+    <Width>456</Width>
+    <Heading>Pass to (roster)</Heading>
+  </Columns>
+</Listbox>
+
+<!-- Fixed text: this client exposes no runtime label or button text setter, so the
+     page-style header cannot be rewritten. Every row carries its own numbers. -->
+<Button item="NMSLootHeader">
+  <ScreenID>NMSLootHeader</ScreenID>
+  <Font>4</Font>
+  <RelativePosition>true</RelativePosition>
+  <Location><X>8</X><Y>8</Y></Location>
+  <Size><CX>456</CX><CY>32</CY></Size>
+  <Style_Checkbox>false</Style_Checkbox>
+  <Text>Pending Loot Decision</Text>
+  <TextColor><R>255</R><G>218</G><B>96</B></TextColor>
+  <ButtonDrawTemplate>
+    <Normal>A_NMSLootBtnNormal</Normal>
+    <Pressed>A_NMSLootBtnPressed</Pressed>
+    <Flyby>A_NMSLootBtnHover</Flyby>
+    <PressedFlyby>A_NMSLootBtnPressedHover</PressedFlyby>
+  </ButtonDrawTemplate>
+</Button>
+
+<Button item="NMSLootKeep">
+  <ScreenID>NMSLootKeep</ScreenID>
+  <Font>4</Font>
+  <RelativePosition>true</RelativePosition>
+  <Location><X>8</X><Y>340</Y></Location>
+  <Size><CX>112</CX><CY>32</CY></Size>
+  <Style_Checkbox>false</Style_Checkbox>
+  <Text>Keep</Text>
+  <TextColor><R>255</R><G>255</G><B>255</B></TextColor>
+  <ButtonDrawTemplate>
+    <Normal>A_NMSLootBtnSmallNormal</Normal>
+    <Pressed>A_NMSLootBtnSmallPressed</Pressed>
+    <Flyby>A_NMSLootBtnSmallHover</Flyby>
+    <Disabled>A_NMSLootBtnSmallDisabled</Disabled>
+  </ButtonDrawTemplate>
+</Button>
+<Button item="NMSLootSell">
+  <ScreenID>NMSLootSell</ScreenID>
+  <Font>4</Font>
+  <RelativePosition>true</RelativePosition>
+  <Location><X>124</X><Y>340</Y></Location>
+  <Size><CX>112</CX><CY>32</CY></Size>
+  <Style_Checkbox>false</Style_Checkbox>
+  <Text>Sell</Text>
+  <TextColor><R>255</R><G>255</G><B>255</B></TextColor>
+  <ButtonDrawTemplate>
+    <Normal>A_NMSLootBtnSmallNormal</Normal>
+    <Pressed>A_NMSLootBtnSmallPressed</Pressed>
+    <Flyby>A_NMSLootBtnSmallHover</Flyby>
+    <Disabled>A_NMSLootBtnSmallDisabled</Disabled>
+  </ButtonDrawTemplate>
+</Button>
+<Button item="NMSLootTribute">
+  <ScreenID>NMSLootTribute</ScreenID>
+  <Font>4</Font>
+  <RelativePosition>true</RelativePosition>
+  <Location><X>240</X><Y>340</Y></Location>
+  <Size><CX>112</CX><CY>32</CY></Size>
+  <Style_Checkbox>false</Style_Checkbox>
+  <Text>Tribute</Text>
+  <TextColor><R>255</R><G>255</G><B>255</B></TextColor>
+  <ButtonDrawTemplate>
+    <Normal>A_NMSLootBtnSmallNormal</Normal>
+    <Pressed>A_NMSLootBtnSmallPressed</Pressed>
+    <Flyby>A_NMSLootBtnSmallHover</Flyby>
+    <Disabled>A_NMSLootBtnSmallDisabled</Disabled>
+  </ButtonDrawTemplate>
+</Button>
+<Button item="NMSLootBank">
+  <ScreenID>NMSLootBank</ScreenID>
+  <Font>4</Font>
+  <RelativePosition>true</RelativePosition>
+  <Location><X>356</X><Y>340</Y></Location>
+  <Size><CX>112</CX><CY>32</CY></Size>
+  <Style_Checkbox>false</Style_Checkbox>
+  <Text>Bank</Text>
+  <TextColor><R>255</R><G>255</G><B>255</B></TextColor>
+  <ButtonDrawTemplate>
+    <Normal>A_NMSLootBtnSmallNormal</Normal>
+    <Pressed>A_NMSLootBtnSmallPressed</Pressed>
+    <Flyby>A_NMSLootBtnSmallHover</Flyby>
+    <Disabled>A_NMSLootBtnSmallDisabled</Disabled>
+  </ButtonDrawTemplate>
+</Button>
+<Button item="NMSLootVault">
+  <ScreenID>NMSLootVault</ScreenID>
+  <Font>4</Font>
+  <RelativePosition>true</RelativePosition>
+  <Location><X>8</X><Y>376</Y></Location>
+  <Size><CX>112</CX><CY>32</CY></Size>
+  <Style_Checkbox>false</Style_Checkbox>
+  <Text>Vault</Text>
+  <TextColor><R>255</R><G>255</G><B>255</B></TextColor>
+  <ButtonDrawTemplate>
+    <Normal>A_NMSLootBtnSmallNormal</Normal>
+    <Pressed>A_NMSLootBtnSmallPressed</Pressed>
+    <Flyby>A_NMSLootBtnSmallHover</Flyby>
+    <Disabled>A_NMSLootBtnSmallDisabled</Disabled>
+  </ButtonDrawTemplate>
+</Button>
+<Button item="NMSLootDestroy">
+  <ScreenID>NMSLootDestroy</ScreenID>
+  <Font>4</Font>
+  <RelativePosition>true</RelativePosition>
+  <Location><X>124</X><Y>376</Y></Location>
+  <Size><CX>112</CX><CY>32</CY></Size>
+  <Style_Checkbox>false</Style_Checkbox>
+  <Text>Destroy</Text>
+  <TextColor><R>255</R><G>120</G><B>96</B></TextColor>
+  <ButtonDrawTemplate>
+    <Normal>A_NMSLootBtnSmallNormal</Normal>
+    <Pressed>A_NMSLootBtnSmallPressed</Pressed>
+    <Flyby>A_NMSLootBtnSmallHover</Flyby>
+    <Disabled>A_NMSLootBtnSmallDisabled</Disabled>
+  </ButtonDrawTemplate>
+</Button>
+<Button item="NMSLootPass">
+  <ScreenID>NMSLootPass</ScreenID>
+  <Font>4</Font>
+  <RelativePosition>true</RelativePosition>
+  <Location><X>240</X><Y>376</Y></Location>
+  <Size><CX>112</CX><CY>32</CY></Size>
+  <Style_Checkbox>false</Style_Checkbox>
+  <Text>Pass</Text>
+  <TextColor><R>160</R><G>218</G><B>255</B></TextColor>
+  <ButtonDrawTemplate>
+    <Normal>A_NMSLootBtnSmallNormal</Normal>
+    <Pressed>A_NMSLootBtnSmallPressed</Pressed>
+    <Flyby>A_NMSLootBtnSmallHover</Flyby>
+    <Disabled>A_NMSLootBtnSmallDisabled</Disabled>
+  </ButtonDrawTemplate>
+</Button>
+<Button item="NMSLootClose">
+  <ScreenID>NMSLootClose</ScreenID>
+  <Font>4</Font>
+  <RelativePosition>true</RelativePosition>
+  <Location><X>356</X><Y>376</Y></Location>
+  <Size><CX>112</CX><CY>32</CY></Size>
+  <Style_Checkbox>false</Style_Checkbox>
+  <Text>Close</Text>
+  <TextColor><R>255</R><G>255</G><B>255</B></TextColor>
+  <ButtonDrawTemplate>
+    <Normal>A_NMSLootBtnSmallNormal</Normal>
+    <Pressed>A_NMSLootBtnSmallPressed</Pressed>
+    <Flyby>A_NMSLootBtnSmallHover</Flyby>
+    <Disabled>A_NMSLootBtnSmallDisabled</Disabled>
+  </ButtonDrawTemplate>
+</Button>
+
+  <Screen item="NMSLootWnd">
+    <RelativePosition>false</RelativePosition>
+    <Location><X>16</X><Y>16</Y></Location>
+    <Size><CX>472</CX><CY>418</CY></Size>
+    <Text>Pending Loot Decision</Text>
+    <Style_VScroll>false</Style_VScroll>
+    <Style_Border>true</Style_Border>
+    <Style_Transparent>false</Style_Transparent>
+    <DrawTemplate>WDT_Filigree</DrawTemplate>
+    <Style_Titlebar>true</Style_Titlebar>
+    <Style_Closebox>true</Style_Closebox>
+    <Escapable>true</Escapable>
+    <Pieces>NMSLootHeader</Pieces>
+    <Pieces>NMSLootPendingList</Pieces>
+    <Pieces>NMSLootRosterList</Pieces>
+    <Pieces>NMSLootKeep</Pieces>
+    <Pieces>NMSLootSell</Pieces>
+    <Pieces>NMSLootTribute</Pieces>
+    <Pieces>NMSLootBank</Pieces>
+    <Pieces>NMSLootVault</Pieces>
+    <Pieces>NMSLootDestroy</Pieces>
+    <Pieces>NMSLootPass</Pieces>
+    <Pieces>NMSLootClose</Pieces>
+  </Screen>
+</XML>

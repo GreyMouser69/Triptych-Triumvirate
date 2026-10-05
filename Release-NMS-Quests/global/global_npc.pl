@@ -88,6 +88,199 @@ sub EVENT_SAY {
     }
 }
 
+# =========================================================================
+# NMS-LOCAL: SHARED LOOT
+#
+# When a mob dies, EVERY eligible player -- the killer included -- gets their own
+# copy of each corpse item delivered to their /nmsloot Pending window (opcode
+# 0x140A), and the corpse is emptied.
+#
+# The killer is deliberately NOT skipped. An earlier version left the corpse
+# intact in group mode so the killer could loot it normally, but EQEmu lets any
+# group member loot a corpse -- so everyone else could take the original AND
+# accept their offer copy. Emptying the corpse and giving everyone an offer is
+# the only outcome that cannot duplicate or lose an item.
+#
+# FAIL-CLOSED MASTER GATE. This is a deliberate DIVERGENCE from BFE, which treats
+# an ABSENT 'sharedloot' bucket as ENABLED (it only returns early on "0"). Here
+# the bucket must be exactly "1" or nothing runs:
+#
+#   absent            -> disabled   (DataBucket returns "" for a missing key, so
+#                                   absent and empty are indistinguishable)
+#   empty string      -> disabled
+#   "0"               -> disabled
+#   malformed / other -> disabled
+#
+# The feature therefore ships dark. Server and client patches can be deployed and
+# exercised through the Perl bindings without silently changing world loot
+# economics on a live shard.
+#
+# Data buckets read (quest::get_data):
+#   sharedloot            1 only. Master switch. Anything else disables.
+#   sharedloot_self       1/0  also route loot when SOLO/ungrouped   (default off)
+#   sharedloot_maxitems   cap items shared per corpse, 0 = no cap    (default 0)
+# =========================================================================
+our $nms_offer_seq = 0;
+
+sub nms_share_corpse_loot {
+    my ($corpse, $killer_id) = @_;
+    return unless ($corpse);
+
+    # ---- FAIL-CLOSED MASTER GATE --------------------------------------
+    # Exact match required. See the header note: an absent bucket reads back
+    # as an empty string, so "defined and not 0" (BFE's test) would enable
+    # the feature on a shard that never configured it.
+    my $enabled = quest::get_data("sharedloot");
+    return unless (defined($enabled) && $enabled eq "1");
+
+    # $killer_id is whoever landed the KILLING BLOW, which for a pet class is the
+    # PET, not its owner. GetClientByID returns nothing for a pet, so this used to
+    # return here: the corpse was never emptied and no offers were queued, and the
+    # kill fell back to the normal loot window. A magician killing with his pet got
+    # the offer window on his own killing blows and the old loot window on his
+    # pet's, which is what made it look random. Same for swarm pets, mercenaries
+    # and charmed mobs -- anything whose entity id is not a Client.
+    my $killer = $entity_list->GetClientByID($killer_id);
+    unless ($killer) {
+        my $ent = $entity_list->GetMobByID($killer_id);
+        my $own = ($ent && $ent->IsPet()) ? $ent->GetOwner() : undef;
+        $killer = $own->CastToClient() if ($own && $own->IsClient());
+    }
+    return unless ($killer);
+
+    my $self_mode = quest::get_data("sharedloot_self");
+    $self_mode = (defined($self_mode) && $self_mode eq "1") ? 1 : 0;
+
+    # Everyone eligible, killer included.
+    my @members;
+    my $group = $killer->IsGrouped() ? $killer->GetGroup() : undef;
+    my $raid  = $killer->GetRaid();
+    if ($group) {
+        push @members, $group->GetMember($_) for (0 .. $group->GroupCount() - 1);
+    }
+    elsif ($raid) {
+        push @members, $raid->GetMember($_) for (0 .. $raid->RaidCount() - 1);
+    }
+    else {
+        return unless ($self_mode);
+        push @members, $killer;
+    }
+    return unless (scalar(@members));
+
+    # ---- Box Looting Control roster --------------------------------------
+    # Opcode 0x140D populates the Looters panel with the characters eligible to
+    # be "active looter". Sent before the offers so the window has the roster in
+    # place by the time rows appear. SendNMSLooterList applies Patch 5's 20-name
+    # cap server-side, so no extra trimming is needed here.
+    {
+        my @names;
+        foreach my $m (@members) {
+            next unless ($m && $m->IsClient());
+            push @names, $m->CastToClient()->GetName();
+        }
+        if (scalar(@names)) {
+            foreach my $m (@members) {
+                next unless ($m && $m->IsClient());
+                $m->CastToClient()->SendNMSLooterList(join(",", @names));
+            }
+        }
+    }
+
+    # ---- coin -----------------------------------------------------------
+    # Separate from the loot list, so it needs its own pass. Split through the
+    # group when there is one so EQ's own division still applies.
+    #
+    # NOTE (unresolved policy, carried over from BFE on purpose): the raid branch
+    # does NOT call Raid::SplitMoney, so in a raid every coin goes to the killer
+    # alone while everyone else receives an item copy. See the plan's open item
+    # "Raid coin policy". Not invented here -- sharedloot ships disabled, and
+    # this must be decided and documented before the gate is turned on.
+    my $cp = $corpse->GetCopper()   || 0;
+    my $sp = $corpse->GetSilver()   || 0;
+    my $gp = $corpse->GetGold()     || 0;
+    my $pp = $corpse->GetPlatinum() || 0;
+    if ($cp || $sp || $gp || $pp) {
+        if ($group) {
+            $group->SplitMoney($cp, $sp, $gp, $pp, $killer);
+        } else {
+            $killer->AddMoneyToPP($cp, $sp, $gp, $pp, 1);
+            my @parts;
+            push @parts, "${pp}p" if ($pp);
+            push @parts, "${gp}g" if ($gp);
+            push @parts, "${sp}s" if ($sp);
+            push @parts, "${cp}c" if ($cp);
+            $killer->Message(15, "[Loot] Collected " . join(" ", @parts) . ".");
+        }
+        $corpse->RemoveCash();
+    }
+
+    # ---- items ----------------------------------------------------------
+    # GetLootEntries() rather than GetLootList(): the latter DE-DUPLICATES item ids
+    # and discards stack sizes, so a corpse holding two of the same drop offered one
+    # and left one behind, and a stack of 20 arrows offered a single arrow and left
+    # 19 sitting on the corpse. Each entry here is "item_id:charges", one per real
+    # loot row, and duplicate rows are processed in turn -- never collapsed.
+    my @loot = $corpse->GetLootEntries();
+    return unless (scalar(@loot));
+
+    my $cap = quest::get_data("sharedloot_maxitems");
+    $cap = 0 unless (defined($cap) && $cap =~ /^\d+$/);
+
+    my $zid = $killer->GetZoneID();
+    my $n = 0;
+    my %queued;
+
+    foreach my $entry (@loot) {
+        my ($item_id, $charges) = split(/:/, $entry);
+        next unless ($item_id && $item_id =~ /^\d+$/ && $item_id > 0);
+        $charges = 1 unless (defined($charges) && $charges =~ /^\d+$/ && $charges > 0);
+        last if ($cap > 0 && $n >= $cap);
+        my $iname = quest::getitemname($item_id);
+        next unless ($iname);
+
+        my $sent = 0;
+        foreach my $m (@members) {
+            next unless ($m && $m->IsClient());
+            my $mc = $m->CastToClient();
+            next unless ($mc->GetZoneID() == $zid);
+            next if ($mc->GetHP() <= 0);
+
+            # NOTE: this id is now only a FALLBACK. The server derives the real
+            # offer id from the item id (nms_lootoffer.cpp), because the client
+            # writes its rules file as Name=Action|icon|<offer id> and matches
+            # saved rules by that id -- a per-offer id meant no rule could ever
+            # match a later drop, which is why auto-sell/auto-keep never fired.
+            $nms_offer_seq = ($nms_offer_seq + 1) % 1000;
+            my $offer_id = ((time() % 86400) * 1000) + $nms_offer_seq;
+            # Queue only -- one transmission per player after the loop. Each send
+            # carries the whole pending list, so sending per item meant N*M
+            # ever-larger packets for N items and M players.
+            $mc->QueueNMSLootOffer($killer->GetName(), $item_id, $iname, $offer_id, $charges);
+            $queued{$mc->CharacterID()} = $mc;
+            $sent++;
+        }
+
+        # The offers REPLACE the corpse item. Leaving it would let anyone who can
+        # loot the corpse take the original on top of their own copy.
+        #
+        # $charges is exactly the quantity Corpse::GetLootEntries() reported for
+        # THIS row, and Corpse::RemoveItemByID() counts quantity in CHARGES
+        # (corpse.cpp:927, stack_size = charges > 1 ? charges : 1) -- so for a stack
+        # of 20 it removes the whole row, and for a plain 1-charge row it removes
+        # that one row. Guessing 1 instead would leave 19 arrows lootable.
+        #
+        # Only after at least one recipient actually queued: if nobody qualified,
+        # the corpse must stay untouched or the items would vanish.
+        $corpse->RemoveItemByID($item_id, $charges) if ($sent);
+        $n++;
+    }
+
+    # One packet per player carrying everything queued above.
+    foreach my $mc (values %queued) {
+        $mc->SendNMSLootPending();
+    }
+}
+
 sub EVENT_DEATH_COMPLETE {
     plugin::CustomEventNPCDeathEntry($killer_id);
 
@@ -129,6 +322,17 @@ sub EVENT_DEATH_COMPLETE {
                 }
             }
         }
+    }
+
+    # NMS-LOCAL: sweep the corpse LAST, after every other death handler has had its
+    # chance to add to it. The rare-drop block above runs at death time, so sharing
+    # before it left the drop sitting on a corpse nobody looks at any more -- with
+    # all normal loot arriving in the Pending window, players stop clicking corpses
+    # entirely. Runs only when the sharedloot master bucket is exactly "1"; see the
+    # fail-closed gate note above nms_share_corpse_loot().
+    if (defined($killed_corpse_id)) {
+        my $shared_corpse = $entity_list->GetCorpseByID($killed_corpse_id);
+        nms_share_corpse_loot($shared_corpse, $killer_id) if ($shared_corpse);
     }
 }
 

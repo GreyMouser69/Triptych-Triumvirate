@@ -183,7 +183,14 @@ void Perl_Corpse_RemoveItemByID(Corpse* self, uint32_t item_id) // @categories S
 
 void Perl_Corpse_RemoveItemByID(Corpse* self, uint32_t item_id, int quantity) // @categories Script Utility
 {
-	self->RemoveItemByID(item_id);
+	// NMS-LOCAL: this overload previously dropped `quantity` on the floor and
+	// called the one-argument form, so RemoveItemByID($id, 20) silently removed a
+	// single charge. Corpse::RemoveItemByID(item_id, quantity) has taken a
+	// quantity since corpse.cpp:927 and treats it as a CHARGE count (a row with
+	// 7 charges contributes 7), which is exactly what shared-loot removal needs
+	// when it hands back the "charges" value from Corpse::GetLootEntries().
+	// The one-argument overload above is untouched.
+	self->RemoveItemByID(item_id, quantity);
 }
 
 void Perl_Corpse_RemoveItemByPercent(Corpse* self, float percent) // @categories Corpse
@@ -216,6 +223,22 @@ perl::array Perl_Corpse_GetLootList(Corpse* self) // @categories Script Utility
 	return result;
 }
 
+// NMS-LOCAL: shared-loot corpse enumeration. Unlike GetLootList() this does not
+// de-duplicate and carries stack sizes, so one entry comes back per real corpse
+// row in "item_id:charges" form.
+perl::array Perl_Corpse_GetLootEntries(Corpse* self) // @categories Script Utility
+{
+	perl::array result;
+
+	auto corpse_items = self->GetLootEntries();
+	for (int i = 0; i < corpse_items.size(); ++i)
+	{
+		result.push_back(corpse_items[i]);
+	}
+
+	return result;
+}
+
 void perl_register_corpse()
 {
 	perl::interpreter perl(PERL_GET_THX);
@@ -239,6 +262,7 @@ void perl_register_corpse()
 	package.add("GetFirstSlotByItemID", &Perl_Corpse_GetFirstLootSlotByItemID);
 	package.add("GetGold", &Perl_Corpse_GetGold);
 	package.add("GetItemIDBySlot", &Perl_Corpse_GetLootItemIDBySlot);
+	package.add("GetLootEntries", &Perl_Corpse_GetLootEntries);
 	package.add("GetLootList", &Perl_Corpse_GetLootList);
 	package.add("GetOwnerName", &Perl_Corpse_GetOwnerName);
 	package.add("GetPlatinum", &Perl_Corpse_GetPlatinum);

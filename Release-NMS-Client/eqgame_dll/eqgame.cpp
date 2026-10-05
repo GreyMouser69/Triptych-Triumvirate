@@ -10,6 +10,8 @@
 #include "xorstr.h"
 #include "waypoint_window.h"
 #include "who_multiclass.h"
+#include "nms_loot_protocol.h"
+#include "nms_vault_protocol.h"
 #include "core_log.h"
 
 
@@ -28,6 +30,8 @@
 static MultiPet g_multiPet;
 static PetWindow g_petWindow;
 static WhoMulticlass g_whoMulticlass;
+static NmsVaultProtocol g_nmsVault;
+static NmsLootProtocol  g_nmsLoot;
 
 // CAuth deferred handshake globals
 uint32_t g_cauth_bitmask = 0;
@@ -1089,6 +1093,18 @@ unsigned char __fastcall HandleWorldMessage_Detour(DWORD *con, DWORD edx,
       return 1; // MultiPet suppressed this packet — do not forward to client
   }
 
+  // NMS: loot protocol (0x140A pending offers, 0x140D looter roster).
+  //
+  // Registered alongside the existing custom consumers and BEFORE the opcode
+  // switch. It returns true for every opcode except the two it consumes, so
+  // waypoint (0x1402), pet (0x1341), who, shroud and every other handler still
+  // see exactly what they saw before. The two NMS opcodes are consumed because
+  // the native client has no handler for them at all; forwarding them would only
+  // push unknown opcodes into eqgame's dispatcher.
+  if (!g_nmsLoot.OnIncomingMessage((uint32_t)opcode, buf, (uint32_t)size)) {
+      return 1; // g_nmsLoot consumed this packet - do not forward to client
+  }
+
   switch (opcode) {
   // 0x6989 (OP_DisciplineTimer) must pass through UNTOUCHED: the banded TimerID (>=20) is the
   // g_discTimers map key. A pre-banding relic here rewrote it mod-20 "for" the native 20-slot
@@ -2065,6 +2081,8 @@ void InitHooks() {
   g_multiPet.Initialize();
   g_petWindow.Initialize();
   g_whoMulticlass.Initialize();
+  g_nmsVault.Initialize();
+  g_nmsLoot.Initialize();
 }
 
 
@@ -2075,6 +2093,8 @@ void ExitHooks() {
 
   // RemoveDetour(0x4E829F); // HandleWorldMessage
 
+  g_nmsLoot.Shutdown();
+  g_nmsVault.Shutdown();
   g_petWindow.Shutdown();
   g_whoMulticlass.Shutdown();
   g_multiPet.Shutdown();

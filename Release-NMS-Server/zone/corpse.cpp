@@ -2254,6 +2254,40 @@ std::vector<int> Corpse::GetLootList()
 	return corpse_items;
 }
 
+/*
+ * NMS-LOCAL: one entry per ACTUAL corpse loot row, as "item_id:charges".
+ *
+ * GetLootList() above is not usable for shared loot: it de-duplicates item ids
+ * (line 2248) and discards charges, so a corpse holding two of the same drop
+ * yields one entry and a stack of 20 arrows yields a bare item id. Either case
+ * loses items -- the caller offers less than the corpse actually holds.
+ *
+ * m_item_list is a std::list<LootItem*>, one node per row, so simply walking it
+ * in order preserves multiplicity and list order for free. The charges value is
+ * normalised the same way Corpse::RemoveItemByID() normalises its stack size
+ * (corpse.cpp:945, `charges > 1 ? charges : 1`), so the quantity a caller reads
+ * from an entry can be handed straight back to RemoveItemByID() and will consume
+ * exactly that one row.
+ *
+ * Read-only: this does not mutate the corpse in any way.
+ */
+std::vector<std::string> Corpse::GetLootEntries()
+{
+	std::vector<std::string> entries;
+
+	for (auto i: m_item_list) {
+		if (!i) {
+			LogError("Corpse::GetLootEntries() - ItemList error, null item");
+			continue;
+		}
+
+		const int charges = i->charges > 1 ? i->charges : 1;
+		entries.push_back(fmt::format("{}:{}", i->item_id, charges));
+	}
+
+	return entries;
+}
+
 void Corpse::SetRezTimer(bool initial_timer)
 {
 	LogCorpsesDetail("Checking for rezzable corpse [{}]", GetName());

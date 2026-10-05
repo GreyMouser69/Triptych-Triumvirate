@@ -2761,6 +2761,42 @@ public:
 	bool NMSVaultLockerCanUse(const EQ::ItemData *item);
 	bool NMSVaultLockerHasAugProc(int16 slot);
 	EQ::ItemInstance *m_nms_locker[NMS_LOCKER_SLOTS] = { nullptr, nullptr, nullptr };
+	// NMS-LOCAL: client DLL loot-offer protocol (opcodes 0x140A / 0x140B / 0x140D).
+	// Offers this client has actually been sent, keyed by item id. The 0x140B reply
+	// packet is client-supplied and must never be trusted on its own -- a grant only
+	// happens if the offer id is found here, which makes forging one useless.
+	struct NMSPendingOffer {
+		uint32 item_id;
+		uint16 charges;
+		uint16 copies;     // >1 when a non-stackable drop was folded into one row
+		uint32 seq;        // insertion order; the map is keyed by item id, not time
+		uint32 queued_at;  // Timer::GetCurrentTime(), for the sweep grace period
+		char   item_name[64];
+		char   from_player[64];
+	};
+
+	Timer m_nms_sweep_timer;              // only runs while offers are pending
+	uint32 m_nms_offer_seq = 0;           // monotonic counter feeding NMSPendingOffer::seq
+	std::map<uint32, NMSPendingOffer> m_nms_offers;
+
+	void SendNMSLootPending();
+	void QueueNMSLootOffer(const char *from_player, uint32 item_id, const char *item_name, uint32 offer_id, uint16 charges = 1);
+	void FlushNMSLootOffers();
+	void SweepNMSLootOffers();
+	void Handle_OP_NMSLootReply(const EQApplicationPacket *app);
+	void ApplyNMSLootDecision(uint32 item_id, uint16 charges, uint16 copies, uint8 action);
+	void PassNMSLootOffer(const char *target_name, uint32 item_id, const char *item_name, uint16 charges, uint16 copies);
+	void SendNMSLooterList(const std::vector<std::string> &names);
+	void RecordNMSLootRule(uint32 item_id, uint8 action);
+	uint8 GetNMSLootRule(uint32 item_id);
+
+	// NMS-LOCAL: exact item return. SummonItemIntoInventory routes through
+	// SummonApocItem, which rewrites item_id (+1,000,000 plus a per-item roll)
+	// whenever Custom:DoItemUpgrades is on -- so an item handed back because the
+	// player never decided on it would come back UPGRADED. These build the instance
+	// directly and never touch that path. See zone/nms_lootoffer.cpp.
+	bool ReturnNMSLootItemExact(uint32 item_id, uint16 charges);
+	bool PlaceNMSLootItemExact(int16 to_slot, uint32 item_id, uint16 charges);
 
 	bool IsFilteredAFKPacket(const EQApplicationPacket *p);
 	void CheckAutoIdleAFK(PlayerPositionUpdateClient_Struct *p);

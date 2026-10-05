@@ -167,6 +167,33 @@ sub EVENT_CONNECT {
 sub EVENT_DISCONNECT {
     # Removes invulnerability effects when disconnecting from the server.
     $client->BuffFadeByEffect(40);
+
+    # NMS-LOCAL: shared-loot offers are removed from the corpse when sent, so an
+    # undecided one is the only copy that exists. Logging out would destroy it.
+    # Hand anything outstanding back rather than losing it silently.
+    $client->FlushNMSLootOffers();
+}
+
+# NMS-LOCAL: zoning destroys the Client object, taking any undecided shared-loot
+# offers with it -- and those items were already removed from the corpse, so they
+# would simply cease to exist. Hand them back before the zone change.
+#
+# EXPLICIT `return 0;` -- not a bare `return;`.
+#
+# Client::ProcessZone (zoning.cpp:238-247) reads this sub's value as an override:
+#   val > 0  -> that value REPLACES target_zone_id (redirects the zone)
+#   val < 0  -> SendZoneCancel(), the zone does not happen at all
+#   val == 0 -> zoning proceeds completely unchanged
+# The value arrives through Embperl::dosub (embperl.cpp:241-253), which converts the
+# sub's last returned scalar to int ONLY when it is a plain integer (SvTYPE ==
+# SVt_IV) and otherwise leaves the initial ret_value of 0. A bare `return;`
+# returns empty-list in list context / undef in scalar context, which is NOT an IV,
+# so it happens to yield 0 -- but that is an accident of the conversion, not a
+# guarantee. `return 0;` states "no override" directly and cannot change meaning if
+# the dispatcher's handling of non-integer returns ever shifts.
+sub EVENT_ZONE {
+    $client->FlushNMSLootOffers();
+    return 0;
 }
 
 sub EVENT_POPUPRESPONSE {

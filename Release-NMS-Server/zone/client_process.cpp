@@ -132,6 +132,12 @@ bool Client::Process() {
 		if (!IsMoving() && m_position_update_timer.Check()) {
 			BroadcastPositionUpdate();
 		}
+		// NMS-LOCAL: apply remembered loot decisions the CLIENT failed to apply.
+		// Only ticks while something is actually pending -- the timer is started
+		// when an offer is queued and disabled again once the list empties.
+		if (m_nms_sweep_timer.Enabled() && m_nms_sweep_timer.Check()) {
+			SweepNMSLootOffers();
+		}
 
 		if (mana_timer.Check())
 			CheckManaEndUpdate();

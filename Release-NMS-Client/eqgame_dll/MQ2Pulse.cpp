@@ -23,6 +23,10 @@ GNU General Public License for more details.
 #include "multi_pet.h"
 #include "pet_window.h"
 #include "waypoint_window.h"
+#include "nms_vault_protocol.h"
+#include "nms_loot_protocol.h"
+#include "nms_vault_window.h"
+#include "nms_loot_window.h"
 
 extern FloatingTextManager* g_pFtm;
 BOOL TurnNotDone=FALSE;
@@ -834,6 +838,23 @@ public:
             pw->OnSetGameState((int)GameState);
         if (WaypointsWnd* ww = WaypointsWnd::GetInstance())
             ww->OnSetGameState((int)GameState);
+        // NMS: cached VAULTDATA and 0x140A/0x140D state are per-character. Any
+        // transition away from ingame (zone change, logout, character select)
+        // must drop them -- a previous character's vault squares and pending
+        // offers would otherwise survive into the next session.
+        if (NmsVaultProtocol* nv = NmsVaultProtocol::GetInstance())
+            nv->OnSetGameState((int)GameState);
+        if (NmsLootProtocol* nl = NmsLootProtocol::GetInstance())
+            nl->OnSetGameState((int)GameState);
+        // NMS: hide the vault window on the same boundary. The authoritative model
+        // is cleared by NmsVaultProtocol above; the window only stops being visible
+        // so a previous character's vault cannot be left on screen.
+        NmsVaultWnd::OnSetGameState((int)GameState);
+        // NMS: same boundary for the loot window. NmsLootProtocol above already
+        // cleared BOTH the pending list and the roster, so this only hides the
+        // window and drops its transient selection -- a prior character's offers
+        // must not stay on screen.
+        NmsLootWnd::OnSetGameState((int)GameState);
         SetGameState_Trampoline(GameState);
     }
 };

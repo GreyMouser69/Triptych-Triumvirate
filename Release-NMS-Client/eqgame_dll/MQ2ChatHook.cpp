@@ -20,6 +20,7 @@ GNU General Public License for more details.
 
 
 #include "MQ2Main.h"
+#include "nms_vault_protocol.h"
 
 class CChatHook 
 { 
@@ -39,6 +40,16 @@ public:
         if (szMsg && strstr(szMsg, "You say, '") && strstr(szMsg, "#autoskill")) {
             Filtered = TRUE;
         }
+
+        // NMS: VAULTDATA protocol traffic. The server emits it as NPC speech
+        // (NMS_vault_utils.pl :: VaultSayLines -> Client::NPCSayTo), so it arrives
+        // on this ordinary chat path.
+        //
+        // Deliberately does NOT set Filtered: the payload shares the chat stream
+        // with real NPCs and with the other filters above, so consuming it here
+        // would suppress unrelated content. Parsing is read-only with respect to
+        // the hook; see nms_vault_protocol.cpp.
+        NmsVaultProtocol::OnChatText(szMsg);
 
         // NMS: Suppress native "Welcome Screen" error message on login.
         if (szMsg && strstr(szMsg, "launching the welcome screen")) {

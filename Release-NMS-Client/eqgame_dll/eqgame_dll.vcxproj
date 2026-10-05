@@ -167,6 +167,10 @@
     <ClCompile Include="Sprite.cpp" />
     <ClCompile Include="Text.cpp" />
     <ClCompile Include="waypoint_window.cpp" />
+    <ClCompile Include="nms_loot_protocol.cpp" />
+    <ClCompile Include="nms_vault_protocol.cpp" />
+    <ClCompile Include="nms_vault_window.cpp" />
+    <ClCompile Include="nms_loot_window.cpp" />
     <ClCompile Include="who_multiclass.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -214,6 +218,10 @@
     <ClInclude Include="Text.h" />
     <ClInclude Include="TickCount.h" />
     <ClInclude Include="waypoint_window.h" />
+    <ClInclude Include="nms_loot_protocol.h" />
+    <ClInclude Include="nms_vault_window.h" />
+    <ClInclude Include="nms_loot_window.h" />
+    <ClInclude Include="nms_vault_protocol.h" />
     <ClInclude Include="who_multiclass.h" />
     <ClInclude Include="weapons.h" />
 

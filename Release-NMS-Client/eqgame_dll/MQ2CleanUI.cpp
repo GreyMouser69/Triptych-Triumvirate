@@ -22,6 +22,8 @@ GNU General Public License for more details.
 #include "MQ2Main.h"
 #include "waypoint_window.h"
 #include "pet_window.h"
+#include "nms_vault_window.h"
+#include "nms_loot_window.h"
 
 extern void NMS_DrainCXStrAccess();
 
@@ -53,6 +55,8 @@ char *OurCaption = "Edge is loading...";
 static void NMS_DestroyCustomWindows()
 {
     WaypointsWnd::Shutdown();
+    NmsVaultWnd::Shutdown();
+    NmsLootWnd::Shutdown();
 
     if (PetWindow* pw = PetWindow::GetInstance()) {
         pw->ResetUI();
