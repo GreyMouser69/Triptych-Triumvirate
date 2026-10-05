@@ -3,8 +3,9 @@
 -- version is supposed to deliver, without trusting db_version. It contains
 -- targeted checks for selected payloads from v18-v42, v50 (the alternate-
 -- currency self-heal), v62-v63 (the Fabled season schema), v71 (Triune blessing
--- names), and v80 (the vault/loot player-schema objects and rule rows). It is
--- not exhaustive coverage of every feature in those versions and does not audit
+-- names), v80 (the vault/loot player-schema objects and rule rows), and v81 (the
+-- on-demand Vault Speaker content row). It is not exhaustive coverage of every
+-- feature in those versions and does not audit
 -- v43-v49, v51-v61, v64-v70, or v72-v79.
 --
 -- Why this exists: we have now twice found servers whose custom_version was
@@ -173,3 +174,10 @@ SELECT 'v80 vault/loot foreign keys (expect 0)' AS what, COUNT(*) AS value FROM 
 
 SELECT 'v80 NMSLoot ruleset-1 rows (expect 7)' AS what, COUNT(*) AS value FROM rule_values WHERE ruleset_id = 1 AND rule_name IN ('Custom:NMSLootIconOffset','Custom:NMSLootSellPercent','Custom:NMSLootTributePercent','Custom:NMSLootAutoSellUnder','Custom:NMSLootDiscardWorthless','Custom:NMSLootAutoSellMinLevel','Custom:NMSLootRememberDecisions');
 SELECT 'v80 NMSLoot ruleset-1 values (informational; operator overrides preserved)' AS what, GROUP_CONCAT(CONCAT(rule_name, '=', rule_value) ORDER BY rule_name SEPARATOR '; ') AS value FROM rule_values WHERE ruleset_id = 1 AND rule_name IN ('Custom:NMSLootIconOffset','Custom:NMSLootSellPercent','Custom:NMSLootTributePercent','Custom:NMSLootAutoSellUnder','Custom:NMSLootDiscardWorthless','Custom:NMSLootAutoSellMinLevel','Custom:NMSLootRememberDecisions');
+
+-- ---- v81: on-demand Vault Speaker -------------------------------------------------------
+SELECT 'v81 Vault Speaker 151258 row (expect 1)' AS what, COUNT(*) AS value FROM npc_types WHERE id = 151258;
+SELECT 'v81 Vault Speaker attributes (expect 1)' AS what, COUNT(*) AS value FROM npc_types WHERE id = 151258 AND name = 'Vault_Speaker' AND level = 1 AND race = 127 AND class = 1 AND bodytype = 11 AND hp = 100 AND mana = 0 AND gender = 0 AND texture = 0 AND size = 0 AND runspeed = 0 AND npc_faction_id = 0 AND aggroradius = 0 AND assistradius = 0 AND findable = 0 AND trackable = 0 AND show_name = 0 AND untargetable = 1 AND flymode = -1 AND MR = 500 AND CR = 500 AND DR = 500 AND FR = 500 AND PR = 500 AND maxlevel = 1;
+SELECT 'v81 Vault Speaker spawnentry references (expect 0)' AS what, COUNT(*) AS value FROM spawnentry WHERE npcID = 151258;
+SELECT 'v81 Vault Speaker spawngroup references (expect 0)' AS what, COUNT(DISTINCT g.id) AS value FROM spawngroup g JOIN spawnentry e ON e.spawngroupID = g.id WHERE e.npcID = 151258;
+SELECT 'v81 Vault Speaker spawn2 references (expect 0)' AS what, COUNT(*) AS value FROM spawn2 s JOIN spawnentry e ON e.spawngroupID = s.spawngroupID WHERE e.npcID = 151258;

@@ -5269,6 +5269,46 @@ INSERT IGNORE INTO `rule_values` (`ruleset_id`, `rule_name`, `rule_value`, `note
 		.content_schema_update = false,
 	},
 
+	ManifestEntry{
+		.version = 81,
+		.description = "2026_10_04_vault_speaker_npc",
+		// Guard on the primary key rather than the name. Any pre-existing 151258 is a
+		// collision and is deliberately left untouched for the v81 health check to flag.
+		.check = "SELECT `id` FROM `npc_types` WHERE `id` = 151258 LIMIT 1",
+		.condition = "empty",
+		.match = "",
+		.sql = R"VAULTSPEAKER(
+-- ============================================================================
+-- Vault Speaker (151258)
+--
+-- The vault protocol must arrive as NPC Say text. This invisible, inert NPC is
+-- spawned beside one player on demand, speaks the VAULTDATA payload, and is
+-- immediately depopped by the quest plugin. It therefore has no persistent
+-- spawn2, spawngroup, or spawnentry row.
+--
+-- The NOT EXISTS predicate repeats the manifest guard at write time. A live ID
+-- collision inserts nothing and never deletes, updates, or replaces that NPC.
+-- ============================================================================
+
+INSERT INTO `npc_types` (
+	`id`, `name`, `lastname`, `level`, `race`, `class`, `bodytype`, `hp`, `mana`,
+	`gender`, `texture`, `size`, `runspeed`, `npc_faction_id`,
+	`aggroradius`, `assistradius`, `findable`, `trackable`, `show_name`,
+	`untargetable`, `flymode`, `MR`, `CR`, `DR`, `FR`, `PR`, `maxlevel`
+)
+SELECT
+	151258, 'Vault_Speaker', '', 1, 127, 1, 11, 100, 0,
+	0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0,
+	1, -1, 500, 500, 500, 500, 500, 1
+FROM DUAL
+WHERE NOT EXISTS (
+	SELECT 1 FROM `npc_types` WHERE `id` = 151258
+);
+)VAULTSPEAKER",
+		.content_schema_update = true,
+	},
+
 	// Used for testing
 
 	//	ManifestEntry{
