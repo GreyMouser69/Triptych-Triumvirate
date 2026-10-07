@@ -60,7 +60,10 @@
 #include "../common/net/eqstream.h"
 
 #include <signal.h>
+#include <atomic>
 #include <chrono>
+#include <functional>
+#include <thread>
 
 #ifdef _CRTDBG_MAP_ALLOC
 #undef new
@@ -81,6 +84,13 @@ volatile bool RunLoops = true;
 #endif
 
 extern volatile bool is_zone_loaded;
+
+static std::atomic<int> shutdown_request{0};
+
+static uint64 CurrentThreadIdHash()
+{
+	return static_cast<uint64>(std::hash<std::thread::id>{}(std::this_thread::get_id()));
+}
 
 #include "zone_event_scheduler.h"
 #include "../common/file.h"
@@ -531,6 +541,17 @@ int main(int argc, char **argv)
 		//Advance the timer to our current point in time
 		Timer::SetCurrentTime();
 
+		const int requested_shutdown = shutdown_request.exchange(0, std::memory_order_acq_rel);
+		if (requested_shutdown != 0) {
+			LogInfo(
+				"Received signal [{}] serviced on zone event loop thread [{}]",
+				requested_shutdown,
+				CurrentThreadIdHash()
+			);
+			Shutdown();
+			return;
+		}
+
 		/**
 		 * Calculate frame time
 		 */
@@ -653,6 +674,8 @@ int main(int argc, char **argv)
 	EQ::Timer process_timer(loop_fn);
 	process_timer.Start(32, true);
 
+	LogInfo("Zone event loop thread [{}] starting event loop", CurrentThreadIdHash());
+
 	EQ::EventLoop::Get().Run();
 
 	entity_list.Clear();
@@ -686,7 +709,9 @@ int main(int argc, char **argv)
 
 void Shutdown()
 {
-	zone->Shutdown(true);
+	if (zone) {
+		zone->Shutdown(true);
+	}
 	LogInfo("Shutting down...");
 	EQEmuLogSys::Instance()->CloseFileLogs();
 	EQ::EventLoop::Get().Shutdown();
@@ -694,10 +719,7 @@ void Shutdown()
 
 void CatchSignal(int sig_num)
 {
-#ifdef _WINDOWS
-	LogInfo("Recieved signal: [{}]", sig_num);
-#endif
-	Shutdown();
+	shutdown_request.store(sig_num, std::memory_order_release);
 }
 
 /* Update Window Title with relevant information */
