@@ -177,6 +177,55 @@ static uint64 NMSSellPayout(const EQ::ItemData *item, uint16 charges, uint16 cop
 }
 
 /*
+ * NMS-LOCAL, Triptych only: stamp the RECAST TIMESTAMP onto a freshly created
+ * loot instance before it is handed to the player.
+ *
+ * Classic loot does this in Corpse::LootCorpseItem (corpse.cpp:1685-1695), on
+ * the instance it is about to grant. A loot offer bypasses the corpse entirely
+ * -- the item is removed from the corpse and rebuilt later by
+ * ReturnNMSLootItemExact()/PlaceNMSLootItemExact() -- so without this the
+ * granted instance kept its default timestamp of 0 and the item behaved as
+ * though it had never been used.
+ *
+ * Recast is RECIPIENT state, not instance state: the lookup key is
+ * (character_id, recast_type) out of character_item_recast, never anything
+ * carried on the LootItem. That is why this is applied at grant time against
+ * the receiving client rather than stored in NMSPendingOffer -- an offer that
+ * is passed to another player must pick up the RECIPIENT's timers, and a
+ * sender-derived value stored on the offer would be wrong for them.
+ *
+ * The branch structure mirrors shareddb.cpp:937-945, which is the more careful
+ * of the two classic sites: each branch tests for the key's presence and
+ * defaults to an explicit 0 otherwise, rather than relying on a ternary that
+ * silently leaves the field alone when the map has no entry.
+ */
+static void ApplyNMSRecastTimestamp(Client *c, EQ::ItemInstance *inst)
+{
+	if (!c || !inst) {
+		return;
+	}
+
+	const auto *d = inst->GetItem();
+	if (!d || d->RecastDelay == 0) {
+		return;
+	}
+
+	const auto timestamps = database.GetItemRecastTimestamps(c->CharacterID());
+
+	if (d->RecastType != RECAST_TYPE_UNLINKED_ITEM && timestamps.count(d->RecastType)) {
+		inst->SetRecastTimestamp(timestamps.at(d->RecastType));
+	}
+	else if (d->RecastType == RECAST_TYPE_UNLINKED_ITEM && timestamps.count(d->ID)) {
+		inst->SetRecastTimestamp(timestamps.at(d->ID));
+	}
+	else {
+		// No timer on record for this character: make the absence explicit rather
+		// than leaving whatever the constructor happened to set.
+		inst->SetRecastTimestamp(0);
+	}
+}
+
+/*
  * NMS-LOCAL, Triptych only: place one EXACT item instance.
  *
  * Builds the instance itself rather than calling SummonItemIntoInventory, so
@@ -208,6 +257,10 @@ bool Client::ReturnNMSLootItemExact(uint32 item_id, uint16 charges)
 		LogError("[NMSLoot] CreateItem failed for item [{}] on [{}]", item_id, GetName());
 		return false;
 	}
+
+	// Applied here, against THIS client, rather than on the offer: the recast
+	// timer belongs to whoever ends up holding the item.
+	ApplyNMSRecastTimestamp(this, inst);
 
 	if (!AutoPutLootInInventory(*inst, false, true)) {
 		// Belt and braces. With try_cursor=true this is unreachable in practice:
@@ -274,6 +327,9 @@ bool Client::PlaceNMSLootItemExact(int16 to_slot, uint32 item_id, uint16 charges
 		LogError("[NMSLoot] CreateItem failed for item [{}] on [{}]", item_id, GetName());
 		return false;
 	}
+
+	// Same recipient-derived rationale as ReturnNMSLootItemExact().
+	ApplyNMSRecastTimestamp(this, inst);
 
 	PutLootInInventory(to_slot, *inst);
 
