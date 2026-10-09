@@ -89,7 +89,7 @@ sub EVENT_SAY {
 }
 
 # =========================================================================
-# NMS-LOCAL: SHARED LOOT
+# NMS-LOCAL: PERSONAL LOOT (Phase A mode gate)
 #
 # When a mob dies, EVERY eligible player -- the killer included -- gets their own
 # copy of each corpse item delivered to their /nmsloot Pending window (opcode
@@ -101,37 +101,33 @@ sub EVENT_SAY {
 # accept their offer copy. Emptying the corpse and giving everyone an offer is
 # the only outcome that cannot duplicate or lose an item.
 #
-# FAIL-CLOSED MASTER GATE. This is a deliberate DIVERGENCE from BFE, which treats
-# an ABSENT 'sharedloot' bucket as ENABLED (it only returns early on "0"). Here
-# the bucket must be exactly "1" or nothing runs:
+# MODE GATE. The server rule Custom:UsePersonalLoot (hosted in rule_values, read
+# through quest::get_rule) is the single authoritative switch. It is FAIL-CLOSED:
+# anything other than exactly "true" -- including an unseeded rule, which reads
+# back as the empty string -- bypasses this path entirely:
 #
-#   absent            -> disabled   (DataBucket returns "" for a missing key, so
-#                                   absent and empty are indistinguishable)
-#   empty string      -> disabled
-#   "0"               -> disabled
-#   malformed / other -> disabled
+#   false / absent -> Normal Loot  (corpse untouched, no offers, no coin change)
+#   true  (solo)   -> custom path below
+#   true  (group)  -> custom path below
+#   true  (raid)   -> Normal Loot  (RAID OVERRIDE, regardless of the rule value)
 #
 # The feature therefore ships dark. Server and client patches can be deployed and
 # exercised through the Perl bindings without silently changing world loot
 # economics on a live shard.
 #
-# Data buckets read (quest::get_data):
-#   sharedloot            1 only. Master switch. Anything else disables.
-#   sharedloot_self       1/0  also route loot when SOLO/ungrouped   (default off)
+# Data buckets still read (quest::get_data):
 #   sharedloot_maxitems   cap items shared per corpse, 0 = no cap    (default 0)
+#
+# Legacy buckets kept INERT as gates (retained in storage for Phase K
+# retirement), no longer read to enable, disable, or shape this path:
+#   sharedloot            (was the master switch)   -- NOT read
+#   sharedloot_self       (was solo routing)        -- NOT read
 # =========================================================================
 our $nms_offer_seq = 0;
 
 sub nms_share_corpse_loot {
     my ($corpse, $killer_id) = @_;
     return unless ($corpse);
-
-    # ---- FAIL-CLOSED MASTER GATE --------------------------------------
-    # Exact match required. See the header note: an absent bucket reads back
-    # as an empty string, so "defined and not 0" (BFE's test) would enable
-    # the feature on a shard that never configured it.
-    my $enabled = quest::get_data("sharedloot");
-    return unless (defined($enabled) && $enabled eq "1");
 
     # $killer_id is whoever landed the KILLING BLOW, which for a pet class is the
     # PET, not its owner. GetClientByID returns nothing for a pet, so this used to
@@ -148,21 +144,27 @@ sub nms_share_corpse_loot {
     }
     return unless ($killer);
 
-    my $self_mode = quest::get_data("sharedloot_self");
-    $self_mode = (defined($self_mode) && $self_mode eq "1") ? 1 : 0;
+    # ---- MODE GATE (Phase A) -------------------------------------------
+    # The server rule Custom:UsePersonalLoot is the ONE authoritative switch.
+    # quest::get_rule is fail-closed: an unseeded rule reads back as "" which is
+    # not "true", so the custom path stays off until an operator sets it.
+    #
+    # RAID OVERRIDE first: a killer inside a raid always uses Normal Loot,
+    # regardless of the rule value. This intentionally replaces the old shared
+    # loot raid-branch fan-out (a raid-wide copy of every item); phase K of the
+    # audit will retire the sharedloot buckets entirely.
+    return if ($killer->GetRaid());
+    return unless (quest::get_rule("Custom:UsePersonalLoot") eq "true");
 
-    # Everyone eligible, killer included.
+    # Everyone eligible, killer included. Solo players always enter the custom
+    # path once the rule is on; the legacy 'sharedloot_self' bucket no longer
+    # gates solo entry (kept inert for phase-K retirement).
     my @members;
     my $group = $killer->IsGrouped() ? $killer->GetGroup() : undef;
-    my $raid  = $killer->GetRaid();
     if ($group) {
         push @members, $group->GetMember($_) for (0 .. $group->GroupCount() - 1);
     }
-    elsif ($raid) {
-        push @members, $raid->GetMember($_) for (0 .. $raid->RaidCount() - 1);
-    }
     else {
-        return unless ($self_mode);
         push @members, $killer;
     }
     return unless (scalar(@members));
@@ -190,11 +192,10 @@ sub nms_share_corpse_loot {
     # Separate from the loot list, so it needs its own pass. Split through the
     # group when there is one so EQ's own division still applies.
     #
-    # NOTE (unresolved policy, carried over from BFE on purpose): the raid branch
-    # does NOT call Raid::SplitMoney, so in a raid every coin goes to the killer
-    # alone while everyone else receives an item copy. See the plan's open item
-    # "Raid coin policy". Not invented here -- sharedloot ships disabled, and
-    # this must be decided and documented before the gate is turned on.
+    # Raids never reach this point: the Phase-A mode gate diverts every raid kill
+    # to Normal Loot before the offer path runs, so the old BFE raid-branch coin
+    # policy (killer keeps all coin) cannot trigger here. Normal Loot's own coin
+    # division applies instead.
     my $cp = $corpse->GetCopper()   || 0;
     my $sp = $corpse->GetSilver()   || 0;
     my $gp = $corpse->GetGold()     || 0;
@@ -328,8 +329,8 @@ sub EVENT_DEATH_COMPLETE {
     # chance to add to it. The rare-drop block above runs at death time, so sharing
     # before it left the drop sitting on a corpse nobody looks at any more -- with
     # all normal loot arriving in the Pending window, players stop clicking corpses
-    # entirely. Runs only when the sharedloot master bucket is exactly "1"; see the
-    # fail-closed gate note above nms_share_corpse_loot().
+    # entirely. Runs only when Custom:UsePersonalLoot is "true" and the killer is
+    # not inside a raid; see the mode-gate note above nms_share_corpse_loot().
     if (defined($killed_corpse_id)) {
         my $shared_corpse = $entity_list->GetCorpseByID($killed_corpse_id);
         nms_share_corpse_loot($shared_corpse, $killer_id) if ($shared_corpse);

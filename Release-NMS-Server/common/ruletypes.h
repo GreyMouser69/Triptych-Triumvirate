@@ -1334,6 +1334,7 @@ RULE_INT(Custom,    NMSLootAutoSellUnder,                  0,       "Reserved fo
 RULE_BOOL(Custom,   NMSLootDiscardWorthless,               false,   "Reserved for NMS loot configuration compatibility; currently has no BFE call site.")
 RULE_INT(Custom,    NMSLootAutoSellMinLevel,               0,       "Reserved for NMS loot configuration compatibility; currently has no BFE call site.")
 RULE_BOOL(Custom,   NMSLootRememberDecisions,              false,   "Remember per-character NMS loot decisions for delayed server-side handling.")
+RULE_BOOL(Custom,   UsePersonalLoot,                       false,   "Phase A mode gate: enables the NMS personal-loot path (Pending window). false or unknown falls back to Normal Loot; raid kills always use Normal Loot regardless of this value. Read by quest scripts via quest::get_rule.")
 
 RULE_BOOL(Custom,   EnableGlobalLoot,                       true,    "Enable or disable global loot tables dynamically")
 RULE_BOOL(Custom,   PermanentServerBuffsEnabled,            false,   "Enable or disable permanent server buffs (spells 43002, 43005, 36856, 17779)")

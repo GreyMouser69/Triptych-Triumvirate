@@ -5309,6 +5309,43 @@ WHERE NOT EXISTS (
 		.content_schema_update = true,
 	},
 
+	ManifestEntry{
+		.version = 82,
+		.description = "2026_10_06_use_personal_loot_rule",
+		// Guard on the ruleset-1 rule row for the new Custom:UsePersonalLoot mode
+		// gate. INSERT IGNORE is idempotent and never overwrites an operator's
+		// existing rule value, so a partial or repeated install is repaired.
+		.check = R"NMSRULE(
+SELECT 'missing'
+WHERE NOT EXISTS (
+	SELECT 1 FROM `rule_values`
+	WHERE `ruleset_id` = 1
+	  AND `rule_name` = 'Custom:UsePersonalLoot'
+)
+)NMSRULE",
+		.condition = "not_empty",
+		.match = "",
+		.sql = R"NMSRULE(
+-- ============================================================================
+-- Custom:UsePersonalLoot (Phase A mode gate)
+--
+-- Single authoritative switch for entering the NMS personal-loot path in
+-- Release-NMS-Quests/global/global_npc.pl. Defaults to 'false' so the custom
+-- path ships dark (fail-closed: an absent rule reads back as an empty string,
+-- which is not "true"). Raid kills always bypass to Normal Loot regardless of
+-- this value. The legacy 'sharedloot' / 'sharedloot_self' data buckets are now
+-- inert as gates and remain unedited.
+--
+-- INSERT IGNORE is deliberate: it seeds the default only when a row is missing
+-- and never replaces an operator's existing rule value.
+-- ============================================================================
+
+INSERT IGNORE INTO `rule_values` (`ruleset_id`, `rule_name`, `rule_value`, `notes`) VALUES
+	(1, 'Custom:UsePersonalLoot', 'false', 'Phase A mode gate for the NMS personal-loot path; false or unknown uses Normal Loot, raid kills always use Normal Loot.');
+)NMSRULE",
+		.content_schema_update = false,
+	},
+
 	// Used for testing
 
 	//	ManifestEntry{
