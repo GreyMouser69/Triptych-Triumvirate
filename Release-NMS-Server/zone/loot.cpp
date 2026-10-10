@@ -135,52 +135,84 @@ void NPC::AddLootTable(uint32 loottable_id, bool is_global)
 	m_loading_global_loot = false;
 }
 
-void NPC::AddLootDropTable(uint32 lootdrop_id, uint8 drop_limit, uint8 min_drop)
-{
-	const auto l  = zone->GetLootdrop(lootdrop_id);
-	const auto le = zone->GetLootdropEntries(lootdrop_id);
-	if (l.id == 0 || le.empty()) {
-		return;
-	}
+/*
+ * NMS-LOCAL (Triptych): loot SELECTION, extracted from AddLootDropTable.
+ *
+ * These two traversals decide WHICH rows come out of a lootdrop; they create
+ * nothing. Everything that turns a selected row into a real item -- allocating
+ * the LootItem, upgrading the tier, equipping the NPC, firing EVENT_LOOT_ADDED,
+ * recording roll statistics, updating the equipment light -- stays in
+ * AddLootDrop()/AddLootDropFixed() or in the caller.
+ *
+ * WHY A CALLBACK AND NOT A RETURNED VECTOR
+ * ---------------------------------------
+ * AddLootDrop() can call DoUpgradeLoot(), which consumes zone->random. The
+ * existing stream therefore interleaves selection and materialization:
+ *
+ *     chance roll -> AddLootDrop -> (maybe upgrade roll) -> next chance roll
+ *
+ * Collecting selections first and materializing afterwards would reorder that
+ * stream (all selection rolls, then all upgrade rolls) and change which items
+ * drop. on_selected is invoked SYNCHRONOUSLY, at exactly the points where the
+ * previous code called AddLootDrop, so the draw order is unchanged.
+ *
+ * The callbacks are templates rather than std::function so they inline into the
+ * selection loops: no type erasure, no indirect branch.
+ *
+ * meets_level is injected rather than called directly because the two paths use
+ * it differently -- Path A asks for the verbose form (which logs every
+ * rejection), Path B uses the non-verbose default. That asymmetry is preserved
+ * deliberately.
+ */
 
-	// if this lootdrop is droplimit=0 and mindrop 0, scan list once and return
-	if (drop_limit == 0 && min_drop == 0) {
-		for (const auto &e: le) {
-			for (int j = 0; j < e.multiplier; ++j) {
-				if (zone->random.Real(0.0, 100.0) <= e.chance && MeetsLootDropLevelRequirements(e, true)) {
-					const EQ::ItemData *database_item = database.GetItem(e.item_id);
-					AddLootDrop(database_item, e);
-					LogLootDetail(
-						"---- NPC (Rolled) [{}] Lootdrop [{}] Item [{}] ({}) Chance [{}] Multiplier [{}]",
-						GetCleanName(),
-						lootdrop_id,
-						database_item->Name,
-						e.item_id,
-						e.chance,
-						e.multiplier
-					);
-				}
+template <typename MeetsLevelFn, typename OnSelectedFn>
+static void RollLootDropTableIndependent(
+	const std::vector<LootdropEntriesRepository::LootdropEntries> &le,
+	EQ::Random &rng,
+	MeetsLevelFn &&meets_level,
+	OnSelectedFn &&on_selected)
+{
+	// Flat scan: every entry gets `multiplier` independent chances. No weighting,
+	// no droplimit, no mindrop. The level check runs AFTER the roll, so the roll
+	// is consumed even when the entry is rejected -- moving it would shift the
+	// stream.
+	for (const auto &e: le) {
+		for (int j = 0; j < e.multiplier; ++j) {
+			if (rng.Real(0.0, 100.0) <= e.chance && meets_level(e, true)) {
+				// Passed through unchanged, including a null result. The previous
+				// code dereferenced it in both AddLootDrop and the log below; that
+				// hazard is pre-existing and is NOT fixed here.
+				const EQ::ItemData *database_item = database.GetItem(e.item_id);
+				on_selected(e, database_item);
 			}
 		}
-		return;
 	}
+}
 
-	if (le.size() > 100 && drop_limit == 0) {
-		drop_limit = 10;
-	}
-
-	if (drop_limit < min_drop) {
-		drop_limit = min_drop;
-	}
-
+/*
+ * Weighted selection. Returns false only when no entry survives the
+ * item-exists + level filter, which is the case that made the previous code
+ * return early and SKIP UpdateEquipmentLight(). Returns true when the traversal
+ * runs to completion, i.e. when the previous code would have reached it.
+ */
+template <typename MeetsLevelFn, typename OnSelectedFn>
+static bool RollLootDropTableWeighted(
+	const std::vector<LootdropEntriesRepository::LootdropEntries> &le,
+	uint8 drop_limit,
+	uint8 min_drop,
+	EQ::Random &rng,
+	MeetsLevelFn &&meets_level,
+	OnSelectedFn &&on_selected)
+{
 	float roll_t                   = 0.0f;
 	float no_loot_prob             = 1.0f;
 	bool  roll_table_chance_bypass = false;
 	bool  active_item_list         = false;
 
+	// Pass 1 consumes no randomness: pure arithmetic over the filtered entries.
 	for (const auto &e: le) {
 		const EQ::ItemData *db_item = database.GetItem(e.item_id);
-		if (db_item && MeetsLootDropLevelRequirements(e)) {
+		if (db_item && meets_level(e, false)) {
 			roll_t += e.chance;
 
 			if (e.chance >= 100) {
@@ -195,7 +227,7 @@ void NPC::AddLootDropTable(uint32 lootdrop_id, uint8 drop_limit, uint8 min_drop)
 	}
 
 	if (!active_item_list) {
-		return;
+		return false;
 	}
 
 	// This will pick one item per iteration until mindrop.
@@ -207,27 +239,31 @@ void NPC::AddLootDropTable(uint32 lootdrop_id, uint8 drop_limit, uint8 min_drop)
 
 	// translate above for loop using l and le
 	for (int i = 0; i < drop_limit; ++i) {
-		if (drops < min_drop || roll_table_chance_bypass || (float) zone->random.Real(0.0, 1.0) >= no_loot_prob) {
-			float           roll = (float) zone->random.Real(0.0, roll_t);
+		// The || short-circuits: while min_drop is unmet, or while a chance>=100
+		// entry bypasses the gate, Real(0,1) is NOT drawn. Preserve that.
+		if (drops < min_drop || roll_table_chance_bypass || (float) rng.Real(0.0, 1.0) >= no_loot_prob) {
+			float           roll = (float) rng.Real(0.0, roll_t);
 			for (const auto &e: le) {
 				const auto *db_item = database.GetItem(e.item_id);
 				if (db_item) {
 					// if it doesn't meet the requirements do nothing
-					if (!MeetsLootDropLevelRequirements(e)) {
+					if (!meets_level(e, false)) {
 						continue;
 					}
 
 					if (roll < e.chance) {
-						AddLootDrop(db_item, e);
+						// Synchronous: any upgrade roll happens inside this call,
+						// i.e. BEFORE the extra-copy roll below.
+						on_selected(e, db_item);
 						drops++;
 
 						uint8 charges = e.multiplier;
 						charges = EQ::ClampLower(charges, static_cast<uint8>(1));
 
 						for (int k = 1; k < charges; ++k) {
-							float c_roll = static_cast<float>(zone->random.Real(0.0, 100.0));
+							float c_roll = static_cast<float>(rng.Real(0.0, 100.0));
 							if (c_roll <= e.chance) {
-								AddLootDrop(db_item, e);
+								on_selected(e, db_item);
 							}
 						}
 
@@ -241,7 +277,59 @@ void NPC::AddLootDropTable(uint32 lootdrop_id, uint8 drop_limit, uint8 min_drop)
 		}
 	}
 
-	UpdateEquipmentLight();
+	return true;
+}
+
+void NPC::AddLootDropTable(uint32 lootdrop_id, uint8 drop_limit, uint8 min_drop)
+{
+	const auto l  = zone->GetLootdrop(lootdrop_id);
+	const auto le = zone->GetLootdropEntries(lootdrop_id);
+	if (l.id == 0 || le.empty()) {
+		return;
+	}
+
+	// Delegates to the NPC method so the verbose logging path keeps using
+	// GetCleanName()/database.CreateItemLink() exactly as before.
+	auto meets_level = [this](const LootdropEntriesRepository::LootdropEntries &e, bool verbose) {
+		return MeetsLootDropLevelRequirements(e, verbose);
+	};
+
+	// if this lootdrop is droplimit=0 and mindrop 0, scan list once and return
+	if (drop_limit == 0 && min_drop == 0) {
+		RollLootDropTableIndependent(
+			le, zone->random, meets_level,
+			[this, lootdrop_id](const LootdropEntriesRepository::LootdropEntries &e, const EQ::ItemData *database_item) {
+				AddLootDrop(database_item, e);
+				LogLootDetail(
+					"---- NPC (Rolled) [{}] Lootdrop [{}] Item [{}] ({}) Chance [{}] Multiplier [{}]",
+					GetCleanName(),
+					lootdrop_id,
+					database_item->Name,
+					e.item_id,
+					e.chance,
+					e.multiplier
+				);
+			});
+		// No UpdateEquipmentLight() on this path, same as before.
+		return;
+	}
+
+	if (le.size() > 100 && drop_limit == 0) {
+		drop_limit = 10;
+	}
+
+	if (drop_limit < min_drop) {
+		drop_limit = min_drop;
+	}
+
+	// No success log on this path, same as before.
+	if (RollLootDropTableWeighted(
+			le, drop_limit, min_drop, zone->random, meets_level,
+			[this](const LootdropEntriesRepository::LootdropEntries &e, const EQ::ItemData *db_item) {
+				AddLootDrop(db_item, e);
+			})) {
+		UpdateEquipmentLight();
+	}
 }
 
 bool NPC::MeetsLootDropLevelRequirements(LootdropEntriesRepository::LootdropEntries loot_drop, bool verbose)
