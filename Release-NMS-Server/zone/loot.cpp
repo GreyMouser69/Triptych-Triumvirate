@@ -67,6 +67,11 @@ void NPC::AddLootTable(uint32 loottable_id, bool is_global)
 		return;
 	}
 
+	// NMS personal loot (phase B2): record the source now that every early-out has
+	// passed and this table is guaranteed to actually be rolled. Placed here, not at
+	// function entry, so a table that is filtered out or skipped is never captured.
+	m_loot_source_tables.push_back({loottable_id, is_global});
+
 	uint32 min_cash = l->mincash;
 	uint32 max_cash = l->maxcash;
 	if (min_cash > max_cash) {

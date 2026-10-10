@@ -198,6 +198,17 @@ public:
 	virtual void FillSpawnStruct(NewSpawn_Struct* ns, Mob* ForWho);
 
 	// loot
+	// One loot source that was actually rolled for this NPC, recorded in call order.
+	// Duplicates are legitimate and preserved: the same loottable can legitimately be
+	// rolled more than once, and the sequence (not the set) is what a replay needs.
+	// is_global is part of the source-call identity because AddLootTable() treats a
+	// global table differently from the NPC's own table (cash is only rolled for the
+	// NPC's own table).
+	struct LootSourceEntry {
+		uint32 loottable_id;
+		bool   is_global;
+	};
+
 	void AddItem(const EQ::ItemData *item, uint16 charges, bool equip_item = true);
 	void AddItem(
 		uint32 item_id,
@@ -241,6 +252,11 @@ public:
 	std::vector<int> GetLootList();
 	uint32 CountLoot();
 	inline uint32 GetLoottableID() const { return m_loottable_id; }
+
+	// Read-only view of the loot sources this NPC actually rolled, in call order.
+	// Intentionally returns a const reference: B2 only records history, and B3
+	// decides where/when it is consumed. No clear method here by design.
+	const std::vector<LootSourceEntry> &GetLootSourceTables() const { return m_loot_source_tables; }
 	inline bool DropsGlobalLoot() const { return !m_skip_global_loot && RuleB(Custom, EnableGlobalLoot); }
 	inline uint32 GetCopper() const { return m_loot_copper; }
 	inline uint32 GetSilver() const { return m_loot_silver; }
@@ -751,6 +767,13 @@ protected:
 	bool                m_is_fabled  = false;
 	const FabledNpcRow *m_fabled_row = nullptr;
 	bool                m_loading_global_loot = false; // true only inside AddLootTable(id, is_global=true)
+
+	// NMS personal loot (phase B2): the ordered sequence of loot sources that
+	// AddLootTable() actually processed for this NPC. Appended once per successful
+	// call, after all early-outs, so it records only sources that really ran.
+	// Owned by the NPC for its whole lifetime -- deliberately NOT cleared at corpse
+	// creation or death; B3 decides where the sequence is consumed or transferred.
+	std::vector<LootSourceEntry> m_loot_source_tables;
 
 	// this is a timer that protects a NPC from having double assignment of loot
 	// this is to prevent a player from killing a NPC and then zoning out and back in to get loot again
