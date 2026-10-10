@@ -337,6 +337,175 @@ void NPC::AddLootDropTable(uint32 lootdrop_id, uint8 drop_limit, uint8 min_drop)
 	}
 }
 
+/*
+ * NMS personal loot (phase B3): replay the source history B2 captured and return
+ * the rolled items by value.
+ *
+ * WHAT THIS IS NOT
+ * ----------------
+ * It is not a second loot pipeline and it does not call AddLootTable(). Calling
+ * that would clear and rewrite m_loot_copper/.../m_loot_platinum, push a fresh
+ * entry onto m_loot_source_tables (recursion), allocate real items, equip the
+ * NPC and fire packets. Everything here is read-only apart from zone->random.
+ *
+ * RNG FIDELITY IS THE WHOLE POINT
+ * -------------------------------
+ * The two B1 traversals above invoke on_selected at the exact point where the
+ * original code called AddLootDrop, and AddLootDrop could call DoUpgradeLoot,
+ * which consumes zone->random. So the normal stream interleaves:
+ *
+ *     selection roll -> upgrade roll -> next selection roll -> ...
+ *
+ * Collecting the selections first and upgrading afterwards would reorder that
+ * stream and change which items come out. So the personal callback upgrades
+ * INSIDE the callback, before the traversal draws again.
+ *
+ * The upgrade guard is copied verbatim from AddLootDrop; when it does not pass,
+ * DoUpgradeLoot is not called and no upgrade RNG is consumed, which is exactly
+ * what the normal path does.
+ *
+ * m_loading_global_loot is only consulted by DoUpgradeLoot, so it is scoped to
+ * the DoUpgradeLoot call alone -- result push_back deliberately happens after
+ * the scope closes, so a vector allocation can never leave the NPC in the
+ * wrong context.
+ *
+ * Items only: no cash, no corpse, no m_loot_items, no equipment, no
+ * EVENT_LOOT_ADDED, no m_rolled_items. Death-time upgrades (LootBuff, seasonal,
+ * hardcore) are NOT applied here -- that is B4's job, at kill time.
+ */
+NPC::PersonalLootRoll NPC::RollPersonalLoot()
+{
+	PersonalLootRoll roll;
+
+	// No captured history means we must not invent one. It is decided purely by
+	// emptiness: a zone-suspend restored NPC lands here with an empty vector even
+	// though it has physical loot, because AddLootTable() returns on
+	// m_resumed_from_zone_suspend before the capture point -- but that is only one
+	// way to end up empty, so the cause is deliberately NOT recorded. B4 treats
+	// false as "personal reroll unavailable, use the native/physical fallback".
+	roll.source_history_available = !m_loot_source_tables.empty();
+	if (!roll.source_history_available) {
+		return roll;
+	}
+
+	// Local scope guard. A local class inside a member function carries the same
+	// access rights as the function, so this reaches the protected member
+	// legally without exposing it, adding a setter, or granting friendship.
+	struct LoadingGlobalLootScope {
+		NPC &npc;
+		bool prior;
+
+		LoadingGlobalLootScope(NPC &n, bool is_global) : npc(n), prior(n.m_loading_global_loot) {
+			npc.m_loading_global_loot = is_global;
+		}
+
+		~LoadingGlobalLootScope() { npc.m_loading_global_loot = prior; }
+	};
+
+	for (const auto &src: m_loot_source_tables) {
+		// Same lookup AddLootTable() performs. Content filtering and
+		// GlobalLootEntry::PassesRules() are deliberately NOT re-run: B2 captured
+		// the already-resolved sources, and re-evaluating global rules now would
+		// test against current zone/hot-zone state instead of spawn-time state.
+		zone->LoadLootTable(src.loottable_id);
+
+		const auto *l = zone->GetLootTable(src.loottable_id);
+		if (!l) {
+			continue;
+		}
+
+		const uint32 global_loot_multiplier = RuleI(Zone, GlobalLootMultiplier);
+
+		// Item generation, mirroring AddLootTable()'s loop verbatim minus cash.
+		for (auto    &lte: zone->GetLootTableEntries(src.loottable_id)) {
+			for (uint32 k = 1; k <= (lte.multiplier * global_loot_multiplier); k++) {
+				const uint8 drop_limit   = lte.droplimit;
+				const uint8 minimum_drop = lte.mindrop;
+				const float probability  = lte.probability;
+
+				float drop_chance = 0.0f;
+				if (EQ::ValueWithin(probability, 0.0f, 100.0f)) {
+					drop_chance = static_cast<float>(zone->random.Real(0.0, 100.0));
+				}
+
+				if (probability != 0.0 && (probability == 100.0 || drop_chance <= probability)) {
+					const auto ld = zone->GetLootdrop(lte.lootdrop_id);
+					const auto le = zone->GetLootdropEntries(lte.lootdrop_id);
+					if (ld.id == 0 || le.empty()) {
+						continue;
+					}
+
+					auto meets_level = [this](const LootdropEntriesRepository::LootdropEntries &e, bool verbose) {
+						return MeetsLootDropLevelRequirements(e, verbose);
+					};
+
+					auto on_selected = [&](const LootdropEntriesRepository::LootdropEntries &e,
+					                       const EQ::ItemData *db_item) {
+						// Intentional defensive divergence. The independent traversal
+						// hands on_selected whatever database.GetItem() returned, null
+						// included, and the normal path then dereferences it in
+						// AddLootDrop and in the log line. A personal roll is a
+						// read-only preview, so it skips a null instead of
+						// reproducing the crash. The weighted path already filters
+						// nulls before calling back, so this only affects the
+						// independent path.
+						if (!db_item) {
+							return;
+						}
+
+						uint32 final_item_id = db_item->ID;
+
+						// Verbatim from AddLootDrop: when this does not hold, the
+						// normal path calls no DoUpgradeLoot and consumes no upgrade
+						// RNG, so neither does this.
+						if (RuleB(Custom, DoItemUpgrades) && final_item_id <= 1000000 && !IsPet()) {
+							// Scoped to the upgrade call: m_loading_global_loot decides
+							// whether DoUpgradeLoot forces the Fabled tier, and it must
+							// reflect this source's own-table/global identity.
+							const LoadingGlobalLootScope scope(*this, src.is_global);
+							final_item_id = DoUpgradeLoot(final_item_id);
+						}
+
+						// After the scope above closed: allocating here cannot leave
+						// the NPC in the wrong global-loot context.
+						roll.items.push_back({
+							.item_id             = final_item_id,
+							.charges             = static_cast<uint16>(e.item_charges),
+							.source_loottable_id = src.loottable_id,
+							.source_is_global    = src.is_global,
+							.source_lootdrop_id  = lte.lootdrop_id
+						});
+					};
+
+					// Path selection uses the ORIGINAL droplimit/mindrop, exactly as
+					// AddLootDropTable does; normalization belongs to the weighted
+					// branch only and never feeds back into this decision.
+					if (drop_limit == 0 && minimum_drop == 0) {
+						RollLootDropTableIndependent(
+							le, zone->random, meets_level, on_selected);
+					}
+					else {
+						uint8 norm_drop_limit = drop_limit;
+
+						if (le.size() > 100 && drop_limit == 0) {
+							norm_drop_limit = 10;
+						}
+
+						if (norm_drop_limit < minimum_drop) {
+							norm_drop_limit = minimum_drop;
+						}
+
+						RollLootDropTableWeighted(
+							le, norm_drop_limit, minimum_drop, zone->random, meets_level, on_selected);
+					}
+				}
+			}
+		}
+	}
+
+	return roll;
+}
+
 bool NPC::MeetsLootDropLevelRequirements(LootdropEntriesRepository::LootdropEntries loot_drop, bool verbose)
 {
 	if (loot_drop.npc_min_level > 0 && GetLevel() < loot_drop.npc_min_level) {

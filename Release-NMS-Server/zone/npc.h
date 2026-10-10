@@ -209,6 +209,39 @@ public:
 		bool   is_global;
 	};
 
+	// NMS personal loot (phase B3): one item produced by a personal roll. Value
+	// semantics only -- no LootItem, no ItemInstance, no corpse or NPC ownership,
+	// no pointers. Safe to hold, copy and hand to a delivery API later.
+	struct PersonalLootRollResult {
+		// Delivery-required.
+		uint32 item_id;   // final id, i.e. after any table-time upgrade
+		uint16 charges;   // from the selected lootdrop entry's item_charges
+
+		// Diagnostic / future-facing provenance. Not needed to deliver the item.
+		// NOTE: source_lootdrop_id identifies the lootdrop, NOT a unique
+		// lootdrop-entry row -- several rows can share one lootdrop id.
+		uint32 source_loottable_id;
+		bool   source_is_global;
+		uint32 source_lootdrop_id;
+	};
+
+	// Result of one NPC::RollPersonalLoot() call.
+	//
+	// source_history_available distinguishes the two cases B4 must not confuse:
+	//   false -> no captured replayable loot-source history exists for this NPC,
+	//            so there is nothing to replay and personal reroll is unavailable;
+	//   true  -> the captured history was replayed; items may legitimately be
+	//            empty because the RNG simply produced no drops.
+	//
+	// false is decided purely by "m_loot_source_tables is empty". A zone-suspend
+	// restored NPC is one known way to get there, but it is not the only one, so
+	// nothing here records WHY. B4 reads false as "fall back to native/physical
+	// loot" and must not infer a cause.
+	struct PersonalLootRoll {
+		bool                             source_history_available = false;
+		std::vector<PersonalLootRollResult> items;
+	};
+
 	void AddItem(const EQ::ItemData *item, uint16 charges, bool equip_item = true);
 	void AddItem(
 		uint32 item_id,
@@ -257,6 +290,15 @@ public:
 	// Intentionally returns a const reference: B2 only records history, and B3
 	// decides where/when it is consumed. No clear method here by design.
 	const std::vector<LootSourceEntry> &GetLootSourceTables() const { return m_loot_source_tables; }
+
+	// NMS personal loot (phase B3): replay the captured source history and return a
+	// value-semantic result. Intentionally non-const -- it advances zone->random
+	// and temporarily sets m_loading_global_loot for the table-time upgrade.
+	//
+	// It performs NO persistent mutation of NPC loot/delivery state: m_loot_items,
+	// cash, equipment, m_rolled_items, m_loot_source_tables, corpse state and
+	// packets/events are all left untouched, and m_loading_global_loot is restored.
+	PersonalLootRoll RollPersonalLoot();
 	inline bool DropsGlobalLoot() const { return !m_skip_global_loot && RuleB(Custom, EnableGlobalLoot); }
 	inline uint32 GetCopper() const { return m_loot_copper; }
 	inline uint32 GetSilver() const { return m_loot_silver; }
