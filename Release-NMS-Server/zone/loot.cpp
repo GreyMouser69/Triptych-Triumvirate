@@ -560,6 +560,156 @@ NPC::DeathLootUpgradeContext NPC::BuildDeathLootUpgradeContext(Mob* killer)
 	return ctx;
 }
 
+/*
+ * NMS personal loot (phase B4b): recipients entitled to an independent
+ * personal table/global roll.
+ *
+ * PHASE A GATE, in the same order the Perl path applies it (global_npc.pl):
+ *   1. a resolvable Client killer
+ *   2. RAID OVERRIDE -- a killer inside a raid always uses Normal Loot,
+ *      regardless of the rule
+ *   3. Custom:UsePersonalLoot must be on
+ * Only then are recipients collected.
+ *
+ * ORDERING IS PART OF THE CONTRACT. Every RollPersonalLoot() call advances the
+ * SHARED zone->random stream, so the enumeration order decides which random
+ * subsequence each player receives. These are therefore sorted by CharacterID
+ * ascending, NOT by group slot:
+ *
+ *   - group slot order shifts whenever somebody joins, leaves or is promoted,
+ *     which would silently change another player's loot;
+ *   - CharacterID is immutable, globally unique and monotonic, so the same
+ *     roster always produces the same assignment;
+ *   - it cannot leak pointer or entity-list iteration order into the result.
+ *
+ * Eligibility mirrors the Perl filters exactly: Client members only, same zone
+ * as the killer, and alive (HP > 0).
+ */
+std::vector<Client *> NPC::GetPersonalLootRecipients(Mob* killer)
+{
+	std::vector<Client *> recipients;
+
+	if (!killer || !killer->IsClient()) {
+		return recipients;
+	}
+
+	// Raid override first, exactly as the Perl gate does.
+	Client *killer_client = killer->CastToClient();
+	if (killer_client->GetRaid()) {
+		return recipients;
+	}
+
+	if (!RuleB(Custom, UsePersonalLoot)) {
+		return recipients;
+	}
+
+	const uint32 zone_id = killer_client->GetZoneID();
+
+	if (killer_client->IsGrouped()) {
+		Group *g = entity_list.GetGroupByClient(killer_client);
+		if (g) {
+			// GroupCount() + members[i] is the C++ equivalent of the Perl
+			// `$group->GetMember($_) for (0 .. $group->GroupCount() - 1)`.
+			for (int i = 0; i < g->GroupCount(); ++i) {
+				// IsClient() BEFORE CastToClient(), mirroring the Perl
+				// `next unless ($m && $m->IsClient())`.
+				//
+				// This ordering is not cosmetic. Entity::CastToClient() only
+				// range-checks for null; its IsClient() guard sits behind
+				// #ifdef _EQDEBUG, which is NOT defined in a release build. So
+				// casting a bot, merc, pet or any other non-Client member would
+				// static_cast it to Client* and the following GetZoneID()/
+				// GetHP()/CharacterID() calls would dereference a bogus pointer.
+				Mob *member = g->members[i];
+				if (!member || !member->IsClient()) {
+					continue;
+				}
+
+				Client *client = member->CastToClient();
+				if (client->GetZoneID() != zone_id || client->GetHP() <= 0) {
+					continue;
+				}
+				recipients.push_back(client);
+			}
+		}
+	}
+	else if (killer_client->GetHP() > 0) {
+		recipients.push_back(killer_client);
+	}
+
+	std::sort(recipients.begin(), recipients.end(),
+		[](const Client *a, const Client *b) {
+			return a->CharacterID() < b->CharacterID();
+		});
+
+	return recipients;
+}
+
+/*
+ * NMS personal loot (phase B4b): confirm every FINAL item id in a staged roll
+ * resolves to real item data.
+ *
+ * This runs BEFORE RemoveTableGeneratedItems() on purpose. Once the physical
+ * table rows are destroyed they cannot be brought back, so every staged id must
+ * already be provably deliverable. Discovering an undeliverable id afterwards
+ * would silently drop an item that the corpse could still have supplied.
+ *
+ * Pure read: no RNG, no mutation, no side effects.
+ */
+bool NPC::ValidatePersonalLootItems(const PersonalLootRoll &roll)
+{
+	for (const auto &item: roll.items) {
+		if (!database.GetItem(item.item_id)) {
+			return false;
+		}
+	}
+	return true;
+}
+
+/*
+ * NMS personal loot (phase B4b): death-time upgrade passes over personal
+ * results. See the declaration in npc.h for why this is two passes and why
+ * seasonal/hardcore stay combined.
+ *
+ * These draws happen AFTER the physical corpse passes have already consumed
+ * theirs, which is intended: personal results are a second, independent roll,
+ * not a replay of the corpse rows.
+ */
+void NPC::ApplyDeathUpgrades(std::vector<PersonalLootRollResult> &items, const DeathLootUpgradeContext &ctx)
+{
+	if (ctx.loot_buff_enabled) {
+		for (auto &item: items) {
+			item.item_id = DoUpgradeLoot(item.item_id);
+		}
+	}
+
+	if (ctx.seasonal_or_hardcore()) {
+		for (auto &item: items) {
+			item.item_id = DoUpgradeLoot(item.item_id);
+		}
+	}
+}
+
+/*
+ * NMS personal loot (phase B4b): drop the physical table/global rows that the
+ * personal rolls replace, keeping script/dynamic rows.
+ *
+ * Only ever called once EVERY recipient has been staged, so an abandoned
+ * attempt leaves the corpse completely untouched.
+ */
+void NPC::RemoveTableGeneratedItems(LootItems &items)
+{
+	for (auto iter = items.begin(); iter != items.end();) {
+		LootItem *item = *iter;
+		if (item && item->lootdrop_id != 0) {
+			iter = items.erase(iter);
+			safe_delete(item);
+			continue;
+		}
+		++iter;
+	}
+}
+
 bool NPC::MeetsLootDropLevelRequirements(LootdropEntriesRepository::LootdropEntries loot_drop, bool verbose)
 {
 	if (loot_drop.npc_min_level > 0 && GetLevel() < loot_drop.npc_min_level) {

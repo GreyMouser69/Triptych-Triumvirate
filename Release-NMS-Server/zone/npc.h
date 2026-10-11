@@ -277,6 +277,9 @@ public:
 	// a refactor.
 	static DeathLootUpgradeContext BuildDeathLootUpgradeContext(Mob* killer);
 
+	// The B4b personal-loot helpers below are NPC-internal and are declared in
+	// the private section at the end of this class.
+
 	void AddItem(const EQ::ItemData *item, uint16 charges, bool equip_item = true);
 	void AddItem(
 		uint32 item_id,
@@ -992,6 +995,55 @@ public:
 	int m_pet_power;
 
 private:
+	// ---- NMS personal loot (phase B4b), NPC-internal ------------------
+	//
+	// These are implementation details of the death-time conversion in
+	// NPC::Death(). They live in private because that member function is the
+	// ONLY caller: an NPC member function may call private NPC members no
+	// matter which translation unit defines them, so their definitions can stay
+	// in loot.cpp with no friend declaration and no visibility change.
+	// Signatures and behaviour are unchanged from the first B4b draft.
+
+	// One recipient's personal table/global roll, staged but not yet delivered.
+	// The Client* is a live group member resolved from the same death-time
+	// context that produced the roll.
+	struct StagedPersonalLoot {
+		Client *recipient = nullptr;
+		PersonalLootRoll roll;
+	};
+
+	// Applies the B4a death-time upgrade PASSES to already-rolled personal items.
+	//
+	// Mirrors the physical passes exactly: two INDEPENDENT passes, each calling
+	// DoUpgradeLoot() once per item in vector order, so an eligible item is
+	// upgraded TWICE when both triggers fire. Seasonal and hardcore are ONE
+	// combined pass here, matching attack.cpp -- they are deliberately not split,
+	// because splitting would double the upgrade depth.
+	//
+	// No messages are emitted: the physical loops message the killer and the
+	// party about a shared corpse row, which has no analogue when each recipient
+	// holds their own independent roll.
+	void ApplyDeathUpgrades(std::vector<PersonalLootRollResult> &items, const DeathLootUpgradeContext &ctx);
+
+	// Confirm every final item id in a staged roll resolves to real item data.
+	// Run during staging, BEFORE the physical table rows are removed, so an
+	// undeliverable id aborts the whole conversion while the corpse can still
+	// supply the loot natively. Pure read: no RNG, no mutation.
+	bool ValidatePersonalLootItems(const PersonalLootRoll &roll);
+
+	// Drop every table/global-generated row (lootdrop_id != 0) from an NPC loot
+	// list, keeping script/dynamic rows (lootdrop_id == 0) in their existing
+	// relative order. Used by B4b AFTER every recipient has been staged, so the
+	// physical table loot is only discarded once independent rerolls exist.
+	void RemoveTableGeneratedItems(LootItems &items);
+
+	// Resolve the recipients entitled to an independent personal roll, in a
+	// STABLE order. Returns an empty list whenever B4b must not run at all:
+	// a raid (which always uses Normal Loot), a non-client killer, the
+	// Custom:UsePersonalLoot rule being off, or nobody qualifying.
+	std::vector<Client *> GetPersonalLootRecipients(Mob* killer);
+	// ---- end NMS personal loot (phase B4b) ----------------------------
+
 	uint32              m_loottable_id;
 	bool                m_skip_global_loot;
 	bool                m_skip_auto_scale;

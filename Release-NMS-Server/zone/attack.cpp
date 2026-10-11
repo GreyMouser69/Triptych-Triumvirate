@@ -3090,6 +3090,122 @@ bool NPC::Death(Mob* killer_mob, int64 damage, uint16 spell, EQ::skills::SkillTy
 			}
 		}
 
+		// ---- NMS personal loot (phase B4b) --------------------------------
+		//
+		// Placed here deliberately: the physical LootBuff and Seasonal/Hardcore
+		// passes have already run over m_loot_items (so those draws are spent),
+		// the Triune block is done, and the Corpse has not been constructed yet
+		// -- so m_loot_items is still NPC-owned and m_loot_source_tables is still
+		// live. Stripping the physical table rows here means the Corpse only ever
+		// receives script/dynamic rows (lootdrop_id == 0), which is exactly the
+		// set the unchanged EVENT_DEATH_COMPLETE sweep distributes.
+		//
+		// Transaction shape: nothing is offered and nothing is removed until
+		// EVERY recipient has been rolled and upgraded successfully. Any failure
+		// abandons the staged vector with the corpse untouched, so the existing
+		// native sweep remains the fallback.
+		//
+		// sharedloot_maxitems is deliberately NOT applied here. That legacy data
+		// bucket governs the physical/script sweep in global_npc.pl and is read
+		// through Perl; B4b's personal table/global results rely on the
+		// per-Client NMSLOOT_MAX_OFFERS=64 bound instead. Translating the bucket
+		// would mean parsing a stringly-typed data bucket out of NPC loot code.
+		if (m_loot_source_tables.empty()) {
+			// No captured replayable history (e.g. a zone-suspend restored NPC).
+			// Skip entirely: no personal RNG is consumed and the physical rows
+			// survive for the native sweep.
+			LogLootDetail("NPC [{}] has no captured loot-source history, personal loot unavailable", GetCleanName());
+		}
+		else {
+			const std::vector<Client *> personal_recipients = GetPersonalLootRecipients(killer);
+
+			if (!personal_recipients.empty()) {
+				std::vector<StagedPersonalLoot> staged;
+				staged.reserve(personal_recipients.size());
+
+				// death_upgrade_ctx was computed above, before the physical passes,
+				// and describes the same killer/group context they used.
+				bool staging_ok = true;
+
+				for (Client *recipient: personal_recipients) {
+					PersonalLootRoll roll = RollPersonalLoot();
+
+					if (!roll.source_history_available) {
+						// Pre-checked above and NPC-wide, so this is not expected.
+						// Fail safe rather than deliver a partial set.
+						staging_ok = false;
+						break;
+					}
+
+					// A valid history with zero items is a legitimate roll, not a
+					// failure: it is staged as-is and yields no offers.
+					ApplyDeathUpgrades(roll.items, death_upgrade_ctx);
+
+					// Every FINAL id must be deliverable BEFORE the physical rows
+					// are destroyed. An upgrade can land on an id with no ItemData,
+					// and discovering that after the commit would drop an item the
+					// corpse could still have supplied.
+					if (!ValidatePersonalLootItems(roll)) {
+						LogError("[NMSLoot] personal roll for NPC [{}] has an undeliverable item id - abandoning personal loot", GetCleanName());
+						staging_ok = false;
+						break;
+					}
+
+					staged.push_back(StagedPersonalLoot{recipient, std::move(roll)});
+				}
+
+				if (staging_ok) {
+					// COMMIT POINT. Everything exists; the physical table/global
+					// rows are replaced by the per-recipient rerolls.
+					RemoveTableGeneratedItems(m_loot_items);
+
+					const char *from_name = GetCleanName();
+
+					for (const auto &entry: staged) {
+						Client *recipient = entry.recipient;
+						if (!recipient) {
+							continue;
+						}
+
+						for (const auto &item: entry.roll.items) {
+							const EQ::ItemData *idata = database.GetItem(item.item_id);
+							if (!idata) {
+								// Unreachable: ValidatePersonalLootItems() already
+								// cleared every staged id BEFORE the commit point.
+								// Kept as a backstop only -- it must never be the
+								// thing that decides whether loot is lost.
+								LogError(
+									"[NMSLoot] personal roll produced unknown item [{}] for [{}] - skipped",
+									item.item_id,
+									recipient->GetName()
+								);
+								continue;
+							}
+
+							recipient->QueueNMSLootOffer(
+								from_name,
+								item.item_id,
+								idata->Name,
+								0,
+								item.charges
+							);
+						}
+
+						// Explicit batch refresh: at committed HEAD a NEW offer row
+						// does not itself push the pending list, so relying on the
+						// queue call would leave the window stale. One call per
+						// recipient, after that recipient's whole batch. Safe even if
+						// an internal merge branch already sent an intermediate
+						// refresh -- SendNMSLootPending() is idempotent.
+						recipient->SendNMSLootPending();
+					}
+				}
+				else {
+					LogLootDetail("NPC [{}] personal loot staging failed, physical loot preserved", GetCleanName());
+				}
+			}
+		}
+
 		uint32 corpse_timer = static_cast<uint32>(level > 54 ? RuleI(NPC, MajorNPCCorpseDecayTime) : RuleI(NPC, MinorNPCCorpseDecayTime));
 
 		if (respawn2 && respawn2->RespawnTimer() > 0) {
