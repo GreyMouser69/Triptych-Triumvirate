@@ -242,6 +242,41 @@ public:
 		std::vector<PersonalLootRollResult> items;
 	};
 
+	// NMS personal loot (phase B4a): the death-time upgrade context for one NPC
+	// death. This is about DEATH UPGRADE BEHAVIOUR only -- it is not the B4b
+	// recipient eligibility rule set, and must never grow into one.
+	//
+	// It captures the exact conditions NPC::Death() already evaluated inline, so
+	// the physical passes and a later personal-result pass can share one source
+	// of truth without either re-deriving them.
+	//
+	// Deliberately NOT merged: loot_buff_enabled and seasonal_or_hardcore() are
+	// two INDEPENDENT passes, each of which calls DoUpgradeLoot() once per item,
+	// so an item can be upgraded twice. Collapsing them into one condition would
+	// silently halve the upgrade depth.
+	struct DeathLootUpgradeContext {
+		// Pass 1 trigger. Independent of the killer entirely.
+		bool loot_buff_enabled = false;
+
+		// Pass 2 inputs, derived from the killer plus its group OR raid.
+		bool seasonal_killer = false;
+		bool hardcore_killer = false;
+
+		// Pass 2 trigger, exactly as the current source combines them: ONE pass
+		// covers both flags, it is not two stacking passes.
+		bool seasonal_or_hardcore() const { return seasonal_killer || hardcore_killer; }
+	};
+
+	// Reproduces the inline context computation NPC::Death() performed. Takes the
+	// same Mob* the original guard tested, and performs the same
+	// `killer && killer->IsClient()` check before casting -- exactly as the code
+	// it replaces did. Pure: it consumes no RNG and mutates nothing, so hoisting
+	// it above the pass-1 loop cannot shift the random stream. The group/raid
+	// walk deliberately keeps the original's unguarded CastToClient() on each
+	// member -- adding a member-type check here would be a behaviour change, not
+	// a refactor.
+	static DeathLootUpgradeContext BuildDeathLootUpgradeContext(Mob* killer);
+
 	void AddItem(const EQ::ItemData *item, uint16 charges, bool equip_item = true);
 	void AddItem(
 		uint32 item_id,

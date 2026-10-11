@@ -506,6 +506,60 @@ NPC::PersonalLootRoll NPC::RollPersonalLoot()
 	return roll;
 }
 
+/*
+ * NMS personal loot (phase B4a): extract the death-time upgrade context that
+ * NPC::Death() used to compute inline.
+ *
+ * ZERO BEHAVIOUR CHANGE. This is a pure read:
+ *   - no RNG is consumed, so it is safe to call before the pass-1 loop
+ *   - nothing is mutated
+ *   - the group/raid walk is transcribed verbatim, including the original's
+ *     unguarded CastToClient() on each member. Adding an IsClient() guard would
+ *     be a behaviour change and is deliberately NOT done here; if that is ever a
+ *     real crash it should be fixed deliberately, not smuggled into a refactor.
+ *
+ * The two flags are kept separate because the two death passes are separate:
+ * pass 1 (LootBuff) and pass 2 (seasonal/hardcore combined) each call
+ * DoUpgradeLoot() once per item, so an eligible item is upgraded TWICE.
+ */
+NPC::DeathLootUpgradeContext NPC::BuildDeathLootUpgradeContext(Mob* killer)
+{
+	DeathLootUpgradeContext ctx;
+
+	// Pass 1 reads a global buff cache; it is independent of the killer.
+	ctx.loot_buff_enabled = database.LootBuffEnabled();
+
+	// Find if anyone who is destined to get loot rights is Seasonal or HC.
+	if (killer && killer->IsClient()) {
+		ctx.seasonal_killer = killer->CastToClient()->IsSeasonal();
+		ctx.hardcore_killer = killer->CastToClient()->IsHardcore();
+
+		if (killer->IsGrouped()) {
+			Group* g = entity_list.GetGroupByClient(killer->CastToClient());
+			if (g) {
+				for (const auto &m : g->members) {
+					if (m) {
+						ctx.seasonal_killer = ctx.seasonal_killer || m->CastToClient()->IsSeasonal();
+						ctx.hardcore_killer = ctx.hardcore_killer || m->CastToClient()->IsHardcore();
+					}
+				}
+			}
+		} else if (killer->IsRaidGrouped()) {
+			Raid* r = entity_list.GetRaidByClient(killer->CastToClient());
+			if (r) {
+				for (const auto &m : r->members) {
+					if (m.member) {
+						ctx.seasonal_killer = ctx.seasonal_killer || m.member->IsSeasonal();
+						ctx.hardcore_killer = ctx.hardcore_killer || m.member->IsHardcore();
+					}
+				}
+			}
+		}
+	}
+
+	return ctx;
+}
+
 bool NPC::MeetsLootDropLevelRequirements(LootdropEntriesRepository::LootdropEntries loot_drop, bool verbose)
 {
 	if (loot_drop.npc_min_level > 0 && GetLevel() < loot_drop.npc_min_level) {

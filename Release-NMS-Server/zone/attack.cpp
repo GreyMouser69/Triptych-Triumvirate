@@ -2954,8 +2954,15 @@ bool NPC::Death(Mob* killer_mob, int64 damage, uint16 spell, EQ::skills::SkillTy
 
 		entity_list.RemoveFromAutoXTargets(this);
 
+		// NMS personal loot (phase B4a): the two death-time upgrade passes below
+		// used to compute their triggers inline, between the passes. Hoisting the
+		// computation above pass 1 is safe because BuildDeathLootUpgradeContext()
+		// is a pure read -- it consumes no RNG, so the random stream is unchanged.
+		// Both pass bodies, their iteration, their messages and their RNG draws are
+		// UNCHANGED below.
+		const DeathLootUpgradeContext death_upgrade_ctx = BuildDeathLootUpgradeContext(killer);
 
-		if (database.LootBuffEnabled()) {
+		if (death_upgrade_ctx.loot_buff_enabled) {
 			for (LootItem* item : m_loot_items) {
 				if (item != nullptr) {
 					auto old_id = item->item_id;
@@ -2999,36 +3006,9 @@ bool NPC::Death(Mob* killer_mob, int64 damage, uint16 spell, EQ::skills::SkillTy
 
 		// Seasonal Stuff
 		// Find if anyone who is destined to get loot rights is Seasonal or HC
+		// (computed above, in death_upgrade_ctx)
 
-		bool seasonal_killer = false;
-		bool hardcore_killer = false;
-		if (killer && killer->IsClient()) {
-			seasonal_killer = seasonal_killer || killer->CastToClient()->IsSeasonal();
-			hardcore_killer = hardcore_killer || killer->CastToClient()->IsHardcore();
-			if (killer->IsGrouped()) {
-				Group* g = entity_list.GetGroupByClient(killer->CastToClient());
-				if (g) {
-					for (const auto &m : g->members) {
-						if (m) {
-							seasonal_killer = seasonal_killer || m->CastToClient()->IsSeasonal();
-							hardcore_killer = hardcore_killer || m->CastToClient()->IsHardcore();
-						}
-					}
-				}
-			} else if (killer->IsRaidGrouped()) {
-				Raid* r = entity_list.GetRaidByClient(killer->CastToClient());
-				if (r) {
-					for (const auto &m : r->members) {
-						if (m.member) {
-							seasonal_killer = seasonal_killer || m.member->IsSeasonal();
-							hardcore_killer = hardcore_killer || m.member->IsHardcore();
-						}
-					}
-				}
-			}
-		}
-
-		if (killer && killer->IsClient() && (seasonal_killer || hardcore_killer)) {
+		if (killer && killer->IsClient() && (death_upgrade_ctx.seasonal_or_hardcore())) {
 			for (LootItem* item : m_loot_items) {
 				if (item != nullptr) {
 					auto old_id = item->item_id;
@@ -3126,8 +3106,8 @@ bool NPC::Death(Mob* killer_mob, int64 damage, uint16 spell, EQ::skills::SkillTy
 			corpse_timer
 		);
 
-		corpse->SetSeasonal(seasonal_killer);
-		corpse->SetHardcore(hardcore_killer);
+		corpse->SetSeasonal(death_upgrade_ctx.seasonal_killer);
+		corpse->SetHardcore(death_upgrade_ctx.hardcore_killer);
 
 		if (killer_mob && emoteid) {
 			DoNPCEmote(EQ::constants::EmoteEventTypes::AfterDeath, emoteid, killer_mob);
