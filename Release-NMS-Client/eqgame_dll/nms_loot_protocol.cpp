@@ -192,10 +192,8 @@ bool NmsLootProtocol::HandleOffer(const void* buffer, uint32_t size) {
         // Fixed-width char arrays: bound explicitly, never trust a terminator
         // that the server's zero-fill normally provides but the wire does not
         // guarantee.
-        std::memcpy(&row.item_name[0], e.item_name, NMS_LOOT_NAME_LEN);
-        row.item_name[NMS_LOOT_NAME_LEN - 1] = '\0';
-        std::memcpy(&row.from_player[0], e.from_player, NMS_LOOT_NAME_LEN);
-        row.from_player[NMS_LOOT_NAME_LEN - 1] = '\0';
+        row.item_name.assign(e.item_name, strnlen(e.item_name, NMS_LOOT_NAME_LEN));
+        row.from_player.assign(e.from_player, strnlen(e.from_player, NMS_LOOT_NAME_LEN));
 
         // Documented field positions. The server writes icon at +0x04, the sell
         // value at +0x08, the bonus flag at +0x10 and the tribute value at +0x11,
