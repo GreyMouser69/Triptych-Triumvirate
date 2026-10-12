@@ -351,6 +351,45 @@ cp -f maps/nektulos-backup.XXXXXX/nektulos.nav maps/nav/nektulos.nav
 
 Restart the server again after restoring the files.
 
+### Bazaar RoF2 client geometry issue
+
+On the tested RoF2 client, having `bazaar.eqg` present in the active EverQuest client
+directory caused the client to render the wrong Bazaar geometry for the Triptych/NMS
+Bazaar content.
+
+Observed symptoms included:
+
+- character appearing below or otherwise misaligned with world geometry
+- NPCs appearing above/below the expected floor
+- symptoms persisted regardless of server-side Bazaar `.map`/`.nav`/`.wtr` generation
+
+The issue was isolated by comparing two clients against the same servers:
+
+Working clean/reference client:
+`<clean reference client install>`
+
+Problem/testing client:
+`<active testing client install>`
+
+The only Bazaar-specific asset difference was `bazaar.eqg`, which was absent from the
+working client and present in the problem client. Temporarily renaming/removing
+`bazaar.eqg` from the active testing client caused Bazaar to render correctly, allowing
+the client to fall back to the legacy Bazaar `.s3d` assets.
+
+Guidance:
+
+- This is a CLIENT-SIDE issue.
+- Do not compensate by mass-editing Bazaar spawn Z values.
+- Do not assume server-side Bazaar map/nav/water files are the cause when this client
+  condition is present.
+- Before changing server geometry, check whether the client has `bazaar.eqg`.
+- Preserve the original file outside the active filename rather than deleting it
+  outright if testing is needed.
+
+A transient duplicate-NPC condition observed during this investigation cleared with
+`#repop`; only one NPC per location respawned. Treat that separately unless it recurs
+after a clean repop or zone boot.
+
 ---
 
 ## Known gaps / work in progress
