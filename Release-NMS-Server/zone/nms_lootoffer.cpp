@@ -428,6 +428,12 @@ void Client::QueueNMSLootOffer(const char *from_player, uint32 item_id, const ch
 			ReturnNMSLootItemExact(item_id, add_c);
 			LogError("[NMSLoot] copies saturated for item [{}] on [{}] - returned directly", item_id, GetName());
 		}
+
+		// The row's quantity changed, so let the client see it now. The client
+		// REPLACES its pending list on every 0x140A and would otherwise keep
+		// showing the old single-item row until the next fresh offer arrived,
+		// which is what made a folded stack look like a silent doubling.
+		SendNMSLootPending();
 		return;
 	}
 
@@ -593,7 +599,20 @@ void Client::SendNMSLootPending()
 		auto &e = o->entries[i];
 		e.id       = kv.first;
 		e.item_ref = kv.second.item_id;
-		strn0cpy(e.item_name, kv.second.item_name, sizeof(e.item_name));
+
+		// One row can stand for several items folded into one (stackables merge
+		// charges, everything else increments copies). The 0x140A entry carries no
+		// quantity field, so expose the total a decision acts on as a suffix on the
+		// displayed name. Send-only: the stored name is untouched, so rule matching
+		// (keyed by the offer id == item id) and logs keep the plain item name.
+		const uint32 total = static_cast<uint32>(kv.second.charges) *
+		                     (kv.second.copies > 0 ? kv.second.copies : 1);
+		if (total > 1) {
+			const std::string decorated = fmt::format("{} (x{})", kv.second.item_name, total);
+			strn0cpy(e.item_name, decorated.c_str(), sizeof(e.item_name));
+		} else {
+			strn0cpy(e.item_name, kv.second.item_name, sizeof(e.item_name));
+		}
 		strn0cpy(e.from_player, kv.second.from_player, sizeof(e.from_player));
 
 		// Entry +0x04 is the ICON id. Established by probe in BFE: writing the item's

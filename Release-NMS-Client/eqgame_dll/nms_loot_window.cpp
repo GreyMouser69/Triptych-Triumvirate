@@ -29,9 +29,19 @@ NmsLootWnd* NmsLootWnd::GetInstance() { return s_instance; }
 // Action buttons, in the order the XML declares them. The value is the server's
 // action code from nms_loot_protocol.h, which mirrors nms_lootoffer.cpp exactly --
 // no renumbering, no local translation table of our own.
+//
+// `child` is deliberately `char*`, NOT `const char*`. CSidlScreenWnd has two
+// GetChildItem() overloads (EQClasses.h:609 and :616):
+//   - GetChildItem(PCHAR)              -> our RecurseAndFindName (EQClasses.cpp:87)
+//   - GetChildItem(CXStr const&)       -> the native EQ one (eqgame+0x45CFD0)
+// A `const char*` does not convert to PCHAR, so it silently picks the native
+// CXStr overload -- which per EQClasses.cpp:53 "fails to find things without a
+// ScreenID", and in this client crashed outright inside eqgame+0x468330. A
+// string literal is not const-qualified in that way, which is why the literal
+// call sites below already bound correctly. Keep this field `char*`.
 struct ActionBinding {
-    const char* child;
-    uint8_t     action;
+    char*     child;
+    uint8_t   action;
 };
 
 static const ActionBinding kActions[] = {
@@ -66,7 +76,18 @@ void NmsLootWnd::Initialize() {
 }
 
 void NmsLootWnd::Shutdown() {
-    RemoveCommand("/nmsloot");
+    // NMS: deliberately NOT RemoveCommand("/nmsloot") here.
+    //
+    // Shutdown() is a UI-lifecycle callback, not a DLL-unload callback: it runs
+    // from NMS_DestroyCustomWindows() (MQ2CleanUI.cpp) on every
+    // CDisplay::CleanGameUI() and on CDisplay::ReloadUI (/loadskin). Those fire
+    // during ordinary client UI setup, long after Initialize() registered the
+    // command, and nothing re-registers it -- so unregistering here made
+    // /nmsloot permanently unavailable while the DLL stayed loaded.
+    //
+    // Command lifetime follows the loaded DLL, not the window instance; the
+    // EQ process is already exiting when final DLL cleanup runs. The window
+    // instance is still destroyed below and re-created on demand by Toggle().
 
     if (s_instance) {
         ((CXWnd*)s_instance)->Show(false, false);
@@ -156,6 +177,10 @@ void NmsLootWnd::Toggle() {
     }
     if (!s_instance) return;
 
+    // Same invariant the open-from-offer path enforces (OnLootModelChanged):
+    // a fresh show starts with no selection, so a stale index from a previous
+    // session cannot leak into the rebuilt lists.
+    s_instance->m_selected_row = -1;
     s_instance->RefreshPending();
     s_instance->RefreshRoster();
     ((CXWnd*)s_instance)->Show(true, true);
@@ -242,6 +267,12 @@ void NmsLootWnd::RefreshPending() {
     for (size_t i = 0; i < rows.size(); ++i) {
         const NmsLootOfferRow& r = rows[i];
 
+        // A locally answered row leaves the view immediately. The server never
+        // resends the list after an ordinary action (SendReply's contract), so
+        // rendering it here would keep a dead, unselectable "(sent)" entry on
+        // screen until the next offer replaces the whole set.
+        if (r.submitted) continue;
+
         std::string line = r.item_name.empty()
                          ? ("item " + std::to_string(r.item_ref))
                          : r.item_name;
@@ -264,10 +295,6 @@ void NmsLootWnd::RefreshPending() {
             line += "  [BONUS]";
         }
 
-        if (r.submitted) {
-            line += "   (sent)";
-        }
-
         snprintf(buf, sizeof(buf), "%s", line.c_str());
 
         // Tooltip is plain text built only from model fields. A native item tooltip
@@ -275,13 +302,12 @@ void NmsLootWnd::RefreshPending() {
         // have and must not be faked for -- the same limitation the vault window has.
         char tip[384];
         snprintf(tip, sizeof(tip),
-                 "offer %u\n%s\nitem %u   icon %u\nfrom: %s\nsell %u copper   tribute %u%s",
+                 "offer %u\n%s\nitem %u   icon %u\nfrom: %s\nsell %u copper   tribute %u",
                  (unsigned)r.id,
                  r.item_name.empty() ? "(no name)" : r.item_name.c_str(),
                  (unsigned)r.item_ref, (unsigned)r.icon,
                  r.from_player.empty() ? "(unknown)" : r.from_player.c_str(),
-                 (unsigned)r.sell_value, (unsigned)r.tribute_value,
-                 r.submitted ? "\n(decision already sent)" : "");
+                 (unsigned)r.sell_value, (unsigned)r.tribute_value);
 
         // Data is the offer id, so a click is validated against the authoritative
         // model rather than trusted from a row index.
@@ -289,9 +315,15 @@ void NmsLootWnd::RefreshPending() {
                                                    (uint32_t)r.id, 0, tip);
         if (row < 0) continue;
 
-        // A submitted row cannot be acted on again before the server refreshes.
-        m_pPendingList->EnableLine(row, !r.submitted);
         m_pending_rows++;
+    }
+
+    // Submitted rows can empty the visible set even while the model still holds
+    // them; present that as the deterministic empty state.
+    if (m_pending_rows == 0) {
+        m_selected_row = -1;
+        RefreshActionButtons();
+        return;
     }
 
     // Selection may point past the end after a shrink.
@@ -476,7 +508,21 @@ int NmsLootWnd::WndNotification(CXWnd* pWnd, unsigned int Message, void* data) {
         // Hide only. The offers stay in Patch 7's model; closing the UI is not a
         // decision and must not discard anything.
         ((CXWnd*)this)->Show(false, false);
-        SetStatus("Pending offers kept - /nmsloot reopens them.");
+
+        // Announce the safety net only when an undecided offer is actually left.
+        // Closing an empty decision queue needs no reassurance -- the previous
+        // unconditional message spammed on every close.
+        NmsLootProtocol* proto = NmsLootProtocol::GetInstance();
+        bool unresolved = false;
+        if (proto) {
+            const std::vector<NmsLootOfferRow>& rows = proto->Pending();
+            for (size_t i = 0; i < rows.size(); ++i) {
+                if (!rows[i].submitted) { unresolved = true; break; }
+            }
+        }
+        if (unresolved) {
+            SetStatus("Pending offers kept - /nmsloot reopens them.");
+        }
         return 0;
     }
 
