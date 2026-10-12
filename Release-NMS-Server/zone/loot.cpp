@@ -25,6 +25,13 @@ void NPC::AddLootTable(uint32 loottable_id, bool is_global)
 
 	if (m_resumed_from_zone_suspend) {
 		LogZoneState("NPC [{}] is resuming from zone suspend, skipping", GetCleanName());
+		LogLootDetail(
+			"NPC [{}] type [{}] skipping loot-source capture for loottable [{}] global [{}] because it resumed from zone suspend",
+			GetCleanName(),
+			GetNPCTypeID(),
+			loottable_id,
+			is_global
+		);
 		return;
 	}
 
@@ -71,6 +78,14 @@ void NPC::AddLootTable(uint32 loottable_id, bool is_global)
 	// passed and this table is guaranteed to actually be rolled. Placed here, not at
 	// function entry, so a table that is filtered out or skipped is never captured.
 	m_loot_source_tables.push_back({loottable_id, is_global});
+	LogLootDetail(
+		"NPC [{}] type [{}] captured loot-source table [{}] global [{}] source_history_size [{}]",
+		GetCleanName(),
+		GetNPCTypeID(),
+		loottable_id,
+		is_global,
+		m_loot_source_tables.size()
+	);
 
 	uint32 min_cash = l->mincash;
 	uint32 max_cash = l->maxcash;
