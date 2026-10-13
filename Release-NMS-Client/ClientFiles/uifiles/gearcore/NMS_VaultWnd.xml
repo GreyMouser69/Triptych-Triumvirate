@@ -262,6 +262,23 @@
   <Template>BDT_BigNormal</Template>
 </Button>
 
+<!-- Deposit Item. Sits in the band deliberately left empty under the action row
+     for exactly this control. It delegates to the server-side authoritative
+     routine (#vault_autodeposit -> plugin::VaultAutoDeposit); the client chooses
+     no destination and touches no vault state. Greyed, not hidden, while the
+     cursor is empty - see NmsVaultWnd::UpdateDepositButtonState. -->
+<Button item="NMSVaultDeposit">
+  <ScreenID>NMSVaultDeposit</ScreenID>
+  <Font>4</Font>
+  <RelativePosition>true</RelativePosition>
+  <Location><X>8</X><Y>420</Y></Location>
+  <Size><CX>216</CX><CY>32</CY></Size>
+  <Style_Checkbox>false</Style_Checkbox>
+  <Text>Deposit Item</Text>
+  <TextColor><R>255</R><G>255</G><B>255</B></TextColor>
+  <Template>BDT_BigNormal</Template>
+</Button>
+
   <Screen item="NMSVaultWnd">
     <RelativePosition>false</RelativePosition>
     <Location><X>16</X><Y>16</Y></Location>
@@ -291,5 +308,6 @@
     <Pieces>NMSVaultNextPage</Pieces>
     <Pieces>NMSVaultWithdraw</Pieces>
     <Pieces>NMSVaultClose</Pieces>
+    <Pieces>NMSVaultDeposit</Pieces>
   </Screen>
 </XML>

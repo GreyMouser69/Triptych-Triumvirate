@@ -255,6 +255,22 @@ sub VaultSayVerbose {
 
 use constant VAULT_PROC_LOCKER_PAGE => 9;
 
+# General storage: pages 1-6, global slots 1-60. These bounds are the whole
+# safety envelope for automatic placement -- VaultAutoDeposit iterates exactly
+# this range and never touches 61-83, so the Clicky pages (7-8) and the Proc
+# Locker (9) are unreachable by any auto-deposit path.
+use constant VAULT_GENERAL_PAGES      => 6;
+use constant VAULT_GENERAL_FIRST_SLOT => 1;
+use constant VAULT_GENERAL_LAST_SLOT  => 60;
+
+# ItemTypeArrow / BagTypeQuiver, copied from common/item_data.h. Perl has no
+# ItemData-by-id accessor, so the same ordinals are spelled out here and
+# documented against the enum they come from:
+#   item_data.h:245 enum BagType : uint8 { BagTypeSmallBag = 0, BagTypeLargeBag, BagTypeQuiver, ... }
+#   item_data.h:60  enum ItemType : uint8 { ItemType1HSlash = 0, ... ItemTypeArrow = 27, ... }
+use constant VAULT_ITEM_TYPE_ARROW => 27;
+use constant VAULT_BAG_TYPE_QUIVER => 2;
+
 sub VaultPageFirstSlot {
     my ($page) = @_;
     return (($page - 1) * 10) + 1;
@@ -362,7 +378,52 @@ sub VaultBagRows {
         $sth->finish();
     }
     $dbh->disconnect();
-    return \@rows;
+	return \@rows;
+}
+
+# Everything on the general pages, in ONE read, for the auto-placement search:
+#   top - { global slot => row }                   from nms_vault
+#   bag - { "page|slot" => { bag_slot => row } }   from nms_vault_bag_items
+#
+# Two queries, replacing the thirteen VaultStash used to make (VaultRows once per
+# page, re-entered inside its own search loop).
+#
+# The slot bounds here are the second line of defence for the "never write
+# outside 1-60" rule: rows outside the range are discarded as they are read, so
+# no caller can reach a Clicky or Proc Locker square even by passing a bad slot.
+sub VaultGeneralSnapshot {
+	my ($client, $dbh) = @_;
+	my %top;
+	my %bag;
+
+	my $a = $dbh->prepare(
+		"SELECT page,slot,item_id,charges,augment_one,augment_two,augment_three,"
+	  . "augment_four,augment_five,augment_six,attuned "
+	  . "FROM nms_vault WHERE character_id=? AND page BETWEEN 1 AND 6");
+	if ($a && $a->execute($client->CharacterID())) {
+		while (my $r = $a->fetchrow_hashref()) {
+			next unless ($r->{slot} >= VAULT_GENERAL_FIRST_SLOT
+					  && $r->{slot} <= VAULT_GENERAL_LAST_SLOT);
+			$top{$r->{slot}} = $r;
+		}
+		$a->finish();
+	}
+
+	my $b = $dbh->prepare(
+		"SELECT page,slot,bag_slot,item_id,charges,augment_one,augment_two,augment_three,"
+	  . "augment_four,augment_five,augment_six,attuned "
+	  . "FROM nms_vault_bag_items WHERE character_id=? "
+	  . "AND page BETWEEN 1 AND 6 AND slot BETWEEN 1 AND 60");
+	if ($b && $b->execute($client->CharacterID())) {
+		while (my $r = $b->fetchrow_hashref()) {
+			next unless ($r->{slot} >= VAULT_GENERAL_FIRST_SLOT
+					  && $r->{slot} <= VAULT_GENERAL_LAST_SLOT);
+			$bag{"$r->{page}|$r->{slot}"}{$r->{bag_slot}} = $r;
+		}
+		$b->finish();
+	}
+
+	return { top => \%top, bag => \%bag };
 }
 
 # The first item among these ids that the character could not receive because
@@ -425,28 +486,80 @@ sub VaultCleanName {
 # Capacity of a container item, or 0 if it is not a container.
 our %VAULT_BAGSLOT_CACHE;
 
+# Cached per-item-id metadata from the `items` table. See VaultItemMeta.
+our %VAULT_ITEMMETA_CACHE;
+
 sub VaultBagSlots {
     my ($item_id) = @_;
     return 0 unless ($item_id && $item_id > 0);
-    return $VAULT_BAGSLOT_CACHE{$item_id} if exists $VAULT_BAGSLOT_CACHE{$item_id};
+    return plugin::VaultItemMeta($item_id)->{bagslots};
+}
 
-    my $slots = 0;
+# Cached per-item-id metadata straight out of the `items` table, the same way
+# bagslots always was: there is no Perl ItemData-by-id accessor in this tree, so
+# a small cached query is the established way for the Vault plugin to read item
+# facts for an item that is NOT in anyone's live inventory (which is every item
+# already sitting in the vault).
+#
+# Returns a hash ref with:
+#   bagslots  - container capacity, 0 for a non-container (was VaultBagSlots)
+#   bagtype   - BagType ordinal; 2 = quiver, which only accepts arrows
+#   itemtype  - ItemType ordinal; 27 = arrow
+#   stacksize - legal maximum stack
+#
+# Keys are always present so callers never have to test for existence.
+sub VaultItemMeta {
+    my ($item_id) = @_;
+    return { bagslots => 0, bagtype => 0, itemtype => 0, stacksize => 0 }
+        unless ($item_id && $item_id > 0);
+
+    return $VAULT_ITEMMETA_CACHE{$item_id} if exists $VAULT_ITEMMETA_CACHE{$item_id};
+
+    my %meta = (bagslots => 0, bagtype => 0, itemtype => 0, stacksize => 0);
     eval {
         my $dbh = plugin::LoadMysql();
         if ($dbh) {
-            my $sth = $dbh->prepare("SELECT bagslots FROM items WHERE id = ? LIMIT 1");
+            my $sth = $dbh->prepare(
+                "SELECT bagslots,bagtype,itemtype,stacksize FROM items WHERE id = ? LIMIT 1");
             if ($sth && $sth->execute($item_id)) {
                 my $row = $sth->fetchrow_hashref();
-                $slots = $row->{bagslots} if ($row && $row->{bagslots});
+                if ($row) {
+                    $meta{bagslots}  = ($row->{bagslots}  && $row->{bagslots}  > 0) ? int $row->{bagslots}  : 0;
+                    $meta{bagtype}   = ($row->{bagtype}   && $row->{bagtype}   > 0) ? int $row->{bagtype}   : 0;
+                    $meta{itemtype}  = ($row->{itemtype}  && $row->{itemtype}  > 0) ? int $row->{itemtype}  : 0;
+                    $meta{stacksize} = ($row->{stacksize} && $row->{stacksize} > 0) ? int $row->{stacksize} : 0;
+                }
                 $sth->finish();
             }
             $dbh->disconnect();
         }
         1;
     };
-    $slots = 0 unless ($slots && $slots > 0);
-    $VAULT_BAGSLOT_CACHE{$item_id} = $slots;
-    return $slots;
+    $VAULT_ITEMMETA_CACHE{$item_id} = \%meta;
+    return \%meta;
+}
+
+# Column name for augment k (0-5) in nms_vault / nms_vault_bag_items.
+sub VaultAugCol {
+    my ($k) = @_;
+    return ("augment_one", "augment_two", "augment_three",
+            "augment_four", "augment_five", "augment_six")[int($k) || 0];
+}
+
+# May an item be placed in this container?
+#
+# Mirrors the quiver rule that
+# EQ::InventoryProfile::FindFreeSlot (common/inventory_profile.cpp:1004) applies
+# when it hunts for a free bag slot: a BagTypeQuiver bag only takes arrows.
+# Everything else the real inventory accepts is accepted here too; the Vault is
+# a storage box, not an equippable set, so there is no class/race/attune gate.
+sub VaultBagAccepts {
+    my ($bag_meta, $item_meta) = @_;
+    return 0 unless ($bag_meta && $bag_meta->{bagslots} > 0);
+    if ($bag_meta->{bagtype} == VAULT_BAG_TYPE_QUIVER) {
+        return (($item_meta && $item_meta->{itemtype}) == VAULT_ITEM_TYPE_ARROW) ? 1 : 0;
+    }
+    return 1;
 }
 
 # Serialise a bag's contents for ADD field 6:
@@ -1621,52 +1734,338 @@ sub VaultDepositFromInventory {
     return plugin::VaultStash($client);
 }
 
+# THE server-side automatic placement routine.
+#
+# Every "put this somewhere sensible" caller goes through here and nowhere else:
+# the vault window's Deposit button (future phase), the loot window's Vault action
+# (#vault_lootstash), #vault_stash and #vault_deposit_inv all funnel into it. It
+# takes NO destination from the client -- the server reads the cursor and decides.
+# There is deliberately no second placement algorithm in this file.
+#
+# ORDER is the proven EQEmu order, read off the real implementation rather than
+# invented:
+#
+#   Client::TryStacking           (zone/inventory.cpp:1343)
+#       pass 1: partial stack in a top-level GENERAL slot
+#       pass 2: partial stack in a bag inner slot
+#   EQ::InventoryProfile::FindFreeSlot (common/inventory_profile.cpp:982)
+#       pass 1: first empty top-level GENERAL slot
+#       pass 2: first empty bag inner slot, skipping quivers for non-arrows
+#   Client::AutoPutLootInInventory    (zone/inventory.cpp:1386)
+#       equip -> TryStacking -> FindFreeSlot
+#
+# So: merge top-level, merge inside bags, empty top-level, empty inside bags.
+# Merge-before-empty is what EQEmu does; it is why a part-full stack gets topped
+# up instead of being shadowed by a brand new one. Scanning is strictly ascending
+# in global slot (and in bag slot), so the result is deterministic.
+#
+# DESTINATIONS ARE SLOTS 1-60, ONLY. Every loop runs between
+# VAULT_GENERAL_FIRST_SLOT and VAULT_GENERAL_LAST_SLOT, and
+# VaultGeneralSnapshot drops anything outside that on read. Pages 7-8
+# (Auto-Clicky) and page 9 (Proc Locker) are therefore unreachable here, so an
+# auto-deposit can never arm a proc or fire a buff by accident.
+#
+# TRANSACTION ORDERING: the whole plan is computed first, then written inside ONE
+# transaction, then committed, and only then is the cursor touched. Database
+# first, cursor second -- the same rule VaultDeposit and VaultBagDeposit already
+# follow. Any failed write rolls back and leaves the cursor exactly as it was.
+#
+# FIDELITY, stated plainly rather than overclaimed: nms_vault and
+# nms_vault_bag_items carry item_id, charges, six augments and attuned. They do
+# NOT carry custom data, evolving state, ornamentation or the evolve serial.
+# Storing such an item loses that metadata, exactly as it already does through the
+# explicit-slot deposit path. V1.2 does not change the schema.
+sub VaultAutoDeposit {
+	my ($client) = @_;
+
+	my $item_id = plugin::VaultCursorItem($client);
+	unless ($item_id) {
+		$client->Message(13, "[Vault] Put an item on your cursor first.");
+		return 1;
+	}
+	return 1 unless plugin::VaultAcceptsAtAll($client, $item_id);
+
+	my $name = plugin::VaultCleanName($item_id);
+	my $src  = plugin::VaultSrcSlot();
+
+	my $inst = $client->GetItemAt($src);
+	my $charges = $inst ? ($inst->GetCharges() || 1) : 1;
+	$charges = 1 if ($charges < 1);
+
+	my @aug = (0, 0, 0, 0, 0, 0);
+	foreach my $i (0 .. 5) {
+		# Same INVALID_ID convention as GetItemIDAt -- reject the sentinel in both
+		# its signed and unsigned forms, or a bogus augment id gets stored.
+		my $a = $client->GetAugmentIDAt($src, $i);
+		$aug[$i] = (defined $a && $a > 0 && $a != 0xFFFFFFFF) ? $a : 0;
+	}
+	my $attuned = ($inst && $inst->IsAttuned()) ? 1 : 0;
+
+	my $meta = plugin::VaultItemMeta($item_id);
+	my $is_container = ($meta->{bagslots} > 0) ? 1 : 0;
+
+	# Mergeable only when the server agrees the item stacks AND the table says
+	# more than one fits. A container never qualifies: bags are not stackable and
+	# must never merge into an existing row.
+	my $stacksize = $meta->{stacksize};
+	$stacksize = $charges if ($stacksize < $charges);
+	my $stackable = ($inst && $inst->IsStackable() && !$is_container && $stacksize > 1) ? 1 : 0;
+
+	my $dbh = plugin::LoadMysql();
+	unless ($dbh) {
+		$client->Message(13, "[Vault] Storage unavailable - nothing was moved.");
+		return 1;
+	}
+
+	my $snap = plugin::VaultGeneralSnapshot($client, $dbh);
+
+	# --- plan (nothing is written yet) ------------------------------------
+	my $remaining = $charges;
+	my @plan;
+	my %touched;   # pages that changed, for the redraw
+
+	# Can this stored row absorb charges from the cursor item?
+	#
+	# STRICTER THAN Client::TryStacking, ON PURPOSE. TryStacking compares item id
+	# alone, which is safe for a live inventory because both sides there are full
+	# ItemInstances. A vault row is a fixed set of columns, so merging on id alone
+	# would add the cursor's charges to a row whose augments or attunement differ
+	# and then silently discard them. All six augments and attuned must match too.
+	# Fewer merges, never a corrupted one.
+	my $mergeable = sub {
+		my ($r) = @_;
+		return 0 unless $stackable;
+		return 0 unless ($r && $r->{item_id} == $item_id);
+		foreach my $k (0 .. 5) {
+			my $have = ($r->{ plugin::VaultAugCol($k) } || 0);
+			return 0 if (($aug[$k] || 0) != $have);
+		}
+		return 0 if ((($r->{attuned} || 0) ? 1 : 0) != $attuned);
+		return 1;
+	};
+
+	# pass 1 - top up partial stacks in general top-level slots
+	if ($stackable) {
+		foreach my $slot (VAULT_GENERAL_FIRST_SLOT .. VAULT_GENERAL_LAST_SLOT) {
+			last unless $remaining > 0;
+			my $r = $snap->{top}{$slot} or next;
+			next unless $mergeable->($r);
+			my $room = $stacksize - ($r->{charges} || 1);
+			next if ($room <= 0);
+			my $n = ($remaining < $room) ? $remaining : $room;
+			push @plan, { kind => 'merge_top', page => plugin::VaultPageOfSlot($slot),
+			              slot => $slot, n => $n };
+			$touched{plugin::VaultPageOfSlot($slot)} = 1;
+			$remaining -= $n;
+		}
+	}
+
+	# pass 2 - top up partial stacks inside bags stored in general slots
+	if ($stackable && $remaining > 0) {
+		foreach my $slot (VAULT_GENERAL_FIRST_SLOT .. VAULT_GENERAL_LAST_SLOT) {
+			last unless $remaining > 0;
+			my $top = $snap->{top}{$slot} or next;
+			my $bmeta = plugin::VaultItemMeta($top->{item_id});
+			next unless plugin::VaultBagAccepts($bmeta, $meta);
+			my $page = plugin::VaultPageOfSlot($slot);
+			my $bin = $snap->{bag}{"$page|$slot"} or next;
+			foreach my $b (sort { $a <=> $b } keys %$bin) {
+				last unless $remaining > 0;
+				my $r = $bin->{$b} or next;
+				next unless $mergeable->($r);
+				my $room = $stacksize - ($r->{charges} || 1);
+				next if ($room <= 0);
+				my $n = ($remaining < $room) ? $remaining : $room;
+				push @plan, { kind => 'merge_bag', page => $page, slot => $slot,
+				              bag_slot => $b, n => $n };
+				$touched{$page} = 1;
+				$remaining -= $n;
+			}
+		}
+	}
+
+	# A container goes down whole: the bag takes the square and every inner item
+	# takes a row, the only shape the wire format can express. Containers never
+	# reach pass 4, and a container already holding one is refused outright.
+	my $inside = ($is_container ? plugin::VaultCursorBagItems($client) : []);
+	if ($is_container && @$inside) {
+		foreach my $r (@$inside) {
+			if (!plugin::VaultAcceptsAtAll($client, $r->{item_id})) {
+				return 1;
+			}
+			if (plugin::VaultBagSlots($r->{item_id}) > 0) {
+				$client->Message(13, "[Vault] Containers cannot be placed inside other containers.");
+				return 1;
+			}
+		}
+	}
+
+	# pass 3 - an empty general top-level slot
+	if ($remaining > 0) {
+		foreach my $slot (VAULT_GENERAL_FIRST_SLOT .. VAULT_GENERAL_LAST_SLOT) {
+			last unless $remaining > 0;
+			next if $snap->{top}{$slot};
+			my $page = plugin::VaultPageOfSlot($slot);
+			# An older bag can leave rows under a square that is now empty.
+			# Storing there would collide with them, so skip the square instead
+			# of overwriting -- the same guard VaultDeposit applies.
+			next if $snap->{bag}{"$page|$slot"};
+			push @plan, { kind => 'new_top', page => $page, slot => $slot,
+			              qty => $remaining, inside => $inside };
+			$touched{$page} = 1;
+			$remaining = 0;
+		}
+	}
+
+	# pass 4 - an empty slot inside a container stored in a general slot
+	if ($remaining > 0 && !$is_container) {
+		foreach my $slot (VAULT_GENERAL_FIRST_SLOT .. VAULT_GENERAL_LAST_SLOT) {
+			last unless $remaining > 0;
+			my $top = $snap->{top}{$slot} or next;
+			my $bmeta = plugin::VaultItemMeta($top->{item_id});
+			next unless plugin::VaultBagAccepts($bmeta, $meta);
+			my $bcap = $bmeta->{bagslots};
+			next unless ($bcap > 0);
+			my $page = plugin::VaultPageOfSlot($slot);
+			my $used = $snap->{bag}{"$page|$slot"} || {};
+			foreach my $b (0 .. $bcap - 1) {
+				next if $used->{$b};
+				push @plan, { kind => 'new_bag', page => $page, slot => $slot,
+				              bag_slot => $b, qty => $remaining };
+				$touched{$page} = 1;
+				$remaining = 0;
+				last;
+			}
+		}
+	}
+
+	unless (@plan) {
+		$dbh->disconnect();
+		$client->Message(13, "[Vault] Pages 1-6 are full - no room for $name. Nothing was moved.");
+		return 1;
+	}
+
+	my $placed = $charges - $remaining;
+
+	# --- write, all of it in ONE transaction -------------------------------
+	# nms_vault and nms_vault_bag_items share no foreign key, so one
+	# begin_work/commit spans both tables with no limitation. That is exactly why
+	# the plan is executed here instead of delegating to VaultDeposit and
+	# VaultBagDeposit, which would each open and close their own connection per
+	# destination and lose atomicity across a multi-destination placement.
+	my $ok = 1;
+	$dbh->begin_work();
+	foreach my $a (@plan) {
+		my $sth;
+		if ($a->{kind} eq 'merge_top') {
+			$sth = $dbh->prepare(
+				"UPDATE nms_vault SET charges = charges + ? "
+			  . "WHERE character_id=? AND page=? AND slot=?");
+			$ok = 0 unless ($sth && eval {
+				$sth->execute($a->{n}, $client->CharacterID(), $a->{page}, $a->{slot})
+			});
+		}
+		elsif ($a->{kind} eq 'merge_bag') {
+			$sth = $dbh->prepare(
+				"UPDATE nms_vault_bag_items SET charges = charges + ? "
+			  . "WHERE character_id=? AND page=? AND slot=? AND bag_slot=?");
+			$ok = 0 unless ($sth && eval {
+				$sth->execute($a->{n}, $client->CharacterID(), $a->{page}, $a->{slot}, $a->{bag_slot})
+			});
+		}
+		elsif ($a->{kind} eq 'new_top') {
+			# INSERT, not REPLACE: an occupied square must fail loudly rather than
+			# overwrite and destroy what was already stored.
+			$sth = $dbh->prepare(
+				"INSERT INTO nms_vault (character_id,page,slot,item_id,charges,"
+			  . "augment_one,augment_two,augment_three,augment_four,augment_five,augment_six,attuned) "
+			  . "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)");
+			$ok = 0 unless ($sth && eval {
+				$sth->execute($client->CharacterID(), $a->{page}, $a->{slot}, $item_id, $a->{qty},
+				              $aug[0], $aug[1], $aug[2], $aug[3], $aug[4], $aug[5], $attuned)
+			});
+			if ($ok && @{ $a->{inside} }) {
+				my $ins = $dbh->prepare(
+					"INSERT INTO nms_vault_bag_items (character_id,page,slot,bag_slot,item_id,charges,"
+				  . "augment_one,augment_two,augment_three,augment_four,augment_five,augment_six,attuned) "
+				  . "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)");
+				$ok = 0 unless $ins;
+				foreach my $r (@{ $a->{inside} }) {
+					last unless $ok;
+					my @a6 = @{ $r->{aug} };
+					$ok = 0 unless eval {
+						$ins->execute($client->CharacterID(), $a->{page}, $a->{slot}, $r->{bag_slot},
+						              $r->{item_id}, $r->{charges},
+						              $a6[0], $a6[1], $a6[2], $a6[3], $a6[4], $a6[5], $r->{attuned});
+					};
+				}
+				$ins->finish() if $ins;
+			}
+		}
+		elsif ($a->{kind} eq 'new_bag') {
+			$sth = $dbh->prepare(
+				"INSERT INTO nms_vault_bag_items (character_id,page,slot,bag_slot,item_id,charges,"
+			  . "augment_one,augment_two,augment_three,augment_four,augment_five,augment_six,attuned) "
+			  . "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)");
+			$ok = 0 unless ($sth && eval {
+				$sth->execute($client->CharacterID(), $a->{page}, $a->{slot}, $a->{bag_slot},
+				              $item_id, $a->{qty},
+				              $aug[0], $aug[1], $aug[2], $aug[3], $aug[4], $aug[5], $attuned)
+			});
+		}
+		$sth->finish() if $sth;
+		last unless $ok;
+	}
+
+	if ($ok) { $dbh->commit(); } else { $dbh->rollback(); }
+	$dbh->disconnect();
+
+	unless ($ok) {
+		$client->Message(13, "[Vault] Storage error - nothing was moved, "
+						   . "the item is still on your cursor.");
+		return 1;
+	}
+
+	# --- cursor, always last ----------------------------------------------
+	# DeleteItemInInventory reduces charges by exactly the quantity given and
+	# leaves the remainder in the slot (common/inventory_profile.cpp:411), so a
+	# partial deposit takes N off the stack and a complete one takes 0.
+	if ($placed >= $charges) {
+		$client->DeleteItemInInventory($src, 0, 1);
+	}
+	else {
+		$client->DeleteItemInInventory($src, $placed, 1);
+	}
+
+	# --- report ------------------------------------------------------------
+	my $dest = $plan[0];
+	my $where = (($dest->{kind} eq 'merge_bag') || ($dest->{kind} eq 'new_bag'))
+		? "inside the container in page $dest->{page}, slot $dest->{slot}"
+		: "in page $dest->{page}, slot $dest->{slot}";
+	my $with = (($dest->{kind} eq 'new_top') && @{ $dest->{inside} })
+		? " with " . scalar(@{ $dest->{inside} }) . " item"
+		  . (@{ $dest->{inside} } == 1 ? "" : "s") . " inside"
+		: "";
+
+	if ($placed >= $charges) {
+		$client->Message(15, "[Vault] Stored $name$with $where.");
+	}
+	else {
+		$client->Message(15, "[Vault] Stored $placed of $charges $name $where. "
+						   . "The remaining " . ($charges - $placed)
+						   . " stayed on your cursor.");
+	}
+
+	# Redraw only the page the player is actually looking at, and only if this
+	# placement changed it.
+	my $viewing = plugin::VaultCurrentPage($client);
+	plugin::VaultRender($client, $viewing) if $touched{$viewing};
+	return 1;
+}
+
+# Retained name: #vault_stash and #vault_lootstash already call this, and the
+# loot window's Vault action must keep resolving. The placement itself is
+# VaultAutoDeposit -- this is an alias, not a second algorithm.
 sub VaultStash {
-    my ($client) = @_;
-    my $item_id = plugin::VaultCursorItem($client);
-    unless ($item_id) {
-        $client->Message(13, "[VaultStash] Put an item on your cursor first.");
-        return 1;
-    }
-    return 1 unless plugin::VaultAcceptsAtAll($client, $item_id);
-    my $name = plugin::VaultCleanName($item_id);
-    my $is_container = plugin::VaultBagSlots($item_id) > 0;
-
-    my $dbh = plugin::LoadMysql();
-    unless ($dbh) {
-        $client->Message(13, "[VaultStash] Storage unavailable - nothing was moved.");
-        return 1;
-    }
-    my %bag_used;   # "page|slot" -> { bag_slot => 1 }
-    my $sth = $dbh->prepare("SELECT page, slot, bag_slot FROM nms_vault_bag_items WHERE character_id = ?");
-    if ($sth && $sth->execute($client->CharacterID())) {
-        while (my $r = $sth->fetchrow_hashref()) { $bag_used{"$r->{page}|$r->{slot}"}{$r->{bag_slot}} = 1; }
-        $sth->finish();
-    }
-    $dbh->disconnect();
-
-    # 1. inside a bag
-    unless ($is_container) {
-        foreach my $page (1 .. 6) {
-            foreach my $row (@{ plugin::VaultRows($client, $page) }) {
-                my $cap = plugin::VaultBagSlots($row->{item_id});
-                next unless $cap > 0;
-                foreach my $b (0 .. $cap - 1) {
-                    next if $bag_used{"$page|$row->{slot}"}{$b};
-                    $client->Message(15, "[VaultStash] page $page slot $row->{slot} bag $b: $name");
-                    return plugin::VaultBagDeposit($client, $row->{slot}, $b);
-                }
-            }
-        }
-    }
-    # 2. a top-level square
-    foreach my $page (1 .. 6) {
-        my $slot = plugin::VaultFreeSlot($client, $page);
-        if ($slot) {
-            $client->Message(15, "[VaultStash] page $page slot $slot: $name");
-            return plugin::VaultDeposit($client, $slot);
-        }
-    }
-    $client->Message(13, "[VaultStash] FULL - no room anywhere on pages 1-6 for $name.");
-    return 1;
+	return plugin::VaultAutoDeposit(@_);
 }

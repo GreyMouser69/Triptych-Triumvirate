@@ -402,6 +402,12 @@ void Heartbeat()
         pw->OnPulse();
     if (WaypointsWnd* ww = WaypointsWnd::GetInstance())
         ww->OnPulse();
+    // NMS: Vault Deposit Item button tracks the cursor every frame. Same pattern
+    // as WaypointsWnd above; without it the button stayed greyed until the player
+    // clicked a Vault row, because this client sends no reliable cursor-change
+    // notification to the window.
+    if (NmsVaultWnd* vw = NmsVaultWnd::GetInstance())
+        vw->OnPulse();
 
     // NMS: Refresh Alt Currency list when inventory window is opened
     static bool s_lastInventoryVisible = false;

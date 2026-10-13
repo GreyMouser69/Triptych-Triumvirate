@@ -854,6 +854,14 @@ sub EVENT_SAY {
             return plugin::VaultStash($client);
         }
 
+        # #vault_autodeposit -- the authoritative server-side auto placement,
+        # exposed on its own so it can be driven and proven before any client
+        # button exists. Takes no destination argument on purpose: the client is
+        # not permitted to name a square. See plugin::VaultAutoDeposit.
+        if ($text =~ /^#vault_autodeposit\b/i) {
+            return plugin::VaultAutoDeposit($client);
+        }
+
         # #vault_deposit_inv <general 1-10> [<bag position>]: store an inventory item
         # without the cursor (the client's Deposit all / shift-click).
         if ($text =~ /^#vault_deposit_inv\s+(\d+)(?:\s+(\d+))?/i) {

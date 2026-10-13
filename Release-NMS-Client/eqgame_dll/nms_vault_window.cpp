@@ -98,6 +98,7 @@ NmsVaultWnd::NmsVaultWnd() : CCustomWnd("NMSVaultWnd") {
 	m_pNextButton   = (CButtonWnd*)GetChildItem("NMSVaultNextPage");
 	m_pWithdrawButton = (CButtonWnd*)GetChildItem("NMSVaultWithdraw");
 	m_pCloseButton  = (CButtonWnd*)GetChildItem("NMSVaultClose");
+	m_pDepositButton = (CButtonWnd*)GetChildItem("NMSVaultDeposit");
 
 	for (int i = 0; i < NMS_VAULT_PAGE_MAX; ++i) {
 		// (PCHAR) cast is deliberate redundancy alongside the `char*` table type:
@@ -114,10 +115,14 @@ NmsVaultWnd::NmsVaultWnd() : CCustomWnd("NMSVaultWnd") {
 	(void)m_pPageIndicator;   // bound, present for layout; see Refresh()
 
 	// Start on page 1; ShowPage()/OPEN overrides this.
-	m_page = NMS_VAULT_PAGE_MIN;
-	m_selected_slot = 0;
-	m_rows = 0;
+m_page = NMS_VAULT_PAGE_MIN;
+    m_selected_slot = 0;
+    m_selected_bag_slot = -1;
+    m_rows = 0;
 	m_contents_rows = 0;
+
+	// Greyed or lit to match the cursor before the window is ever seen.
+	UpdateDepositButtonState();
 }
 
 NmsVaultWnd::~NmsVaultWnd() {
@@ -229,6 +234,10 @@ void NmsVaultWnd::Refresh() {
 
     char buf[512];
 
+    // Row index that carries the selected slot, captured while rebuilding and used
+    // once below to restore the list control's own selection. -1 = nothing selected.
+    int sel_row = -1;
+
     for (int slot = first; slot <= last; ++slot) {
         const NmsVaultSlot& s = proto->Slot(slot);
 
@@ -291,6 +300,10 @@ void NmsVaultWnd::Refresh() {
                                                (uint32_t)slot, 0, tip);
         if (row < 0) continue;   // defensive: a refused row must not desync m_rows
 
+        // Remember which row carries the selected slot, so the list control's own
+        // selection can be put back after the rebuild below.
+        if (slot == m_selected_slot) sel_row = row;
+
         // Page 9 owns only three real slots. Its row loop runs to `last` (81..83),
         // so there are no phantom 84..90 cells to disable here -- the window
         // simply never creates them. The guard below is therefore belt-and-braces
@@ -299,6 +312,29 @@ void NmsVaultWnd::Refresh() {
             m_pItemList->EnableLine(row, false);
         }
         m_rows++;
+    }
+
+    // Restore the list control's own selection after the DeleteAll()/rebuild.
+    //
+    // WHY. DeleteAll() throws away every row, and the native highlight is drawn
+    // against the control's selected index, so after a rebuild there is nothing
+    // highlighted. Clicking an OCCUPIED row used to call Refresh() and therefore
+    // wiped the highlight the click had just set, while clicking an EMPTY row took
+    // the other branch and never rebuilt -- which is exactly why empty rows
+    // highlighted and occupied rows did not.
+    //
+    // This is not only cosmetic. WndNotification's Withdraw branch re-derives its
+    // slot through ResolveSelection(), which reads m_pItemList->GetCurSel(). With
+    // the selection wiped, that read could not return the row the player clicked,
+    // so Withdraw could refuse with "Nothing selected." (or, worse, resolve to a
+    // different row). Restoring the selection fixes the highlight and that read
+    // with one call.
+    //
+    // m_selected_slot is only non-zero while a row is genuinely selected, and it is
+    // reset before Refresh() on a page change, so no stale highlight can survive a
+    // page switch. sel_row stays -1 when nothing is selected and nothing is set.
+    if (sel_row >= 0) {
+        m_pItemList->SetCurSel(sel_row);
     }
 
     // Page indicator always reflects the page actually being displayed. It is a
@@ -332,9 +368,20 @@ void NmsVaultWnd::Refresh() {
                           && proto->Slot(m_selected_slot).valid;
         ((CXWnd*)m_pWithdrawButton)->Show(can_act, true);
     }
+
+    // The cursor state is re-derived on every server-confirmed redraw, so the
+    // button cannot stay lit after a deposit emptied the cursor.
+    UpdateDepositButtonState();
 }
 
 void NmsVaultWnd::RefreshContents() {
+    // Any rebuild invalidates a child selection: the rows are about to be replaced,
+    // so neither the native highlight nor the remembered bag slot still refers to
+    // anything. Clearing ownership here is what keeps "what Withdraw acts on" and
+    // "what the player can see highlighted" from drifting apart.
+    m_selected_bag_slot = -1;
+    if (m_pContentsList) m_pContentsList->SetCurSel(-1);
+
     if (!m_pContentsList) return;
 
     NmsVaultProtocol* proto = NmsVaultProtocol::GetInstance();
@@ -503,6 +550,46 @@ void NmsVaultWnd::RequestPage(int page) {
 // Input
 // ---------------------------------------------------------------------------
 
+// Is there an item on the cursor? See the header for the offset and the two
+// in-tree precedents for this exact test.
+bool NmsVaultWnd::CursorHasItem() {
+    PCHARINFO2 pChar = GetCharInfo2();
+    return (pChar && pChar->pInventoryArray
+            && pChar->pInventoryArray->Inventory.Cursor) ? true : false;
+}
+
+// Greyed-but-visible rather than hidden. See the header for why this uses the
+// Enabled byte instead of Show()/Hide().
+//
+// Writes ONLY on a change. This runs every frame from OnPulse(), and poking the
+// Enabled byte unconditionally would dirty the control's redraw state ~30x a
+// second for no reason.
+void NmsVaultWnd::UpdateDepositButtonState() {
+    if (!m_pDepositButton) return;
+    const BYTE want = CursorHasItem() ? 1 : 0;
+    if (((PCSIDLWND)m_pDepositButton)->Enabled == want) return;
+    ((PCSIDLWND)m_pDepositButton)->Enabled = want;
+}
+
+// Per-frame cursor tracking.
+//
+// WHY THIS EXISTS. Live testing showed XWM_MOUSEOVER is NOT a reliable
+// cursor-change signal in this client: picking an item up left the button greyed
+// until the player clicked a Vault row, which only worked because that click
+// routes into Refresh(), which ends by re-deriving this state. Hovering alone did
+// nothing. Rather than abuse mouse notifications, this window now follows the
+// sibling WaypointsWnd's established pattern: an OnPulse() called from MQ2Pulse
+// every frame (waypoint_window.h:19, MQ2Pulse.cpp:403).
+//
+// Strictly read-only and strictly local: it compares one pointer for NULL and
+// writes one byte. No server traffic, no packet, no model rebuild, no Refresh().
+void NmsVaultWnd::OnPulse() {
+    if (!s_instance) return;
+    // Nothing to grey while the window is off screen, and this is per-frame.
+    if (!((CXWnd*)s_instance)->IsReallyVisible()) return;
+    s_instance->UpdateDepositButtonState();
+}
+
 int NmsVaultWnd::WndNotification(CXWnd* pWnd, unsigned int Message, void* data) {
     // No titlebar-closebox or Escape branch here on purpose. There is no XWM_CLOSE
     // in this client at all (MQ2Main.h defines only LCLICK/LMOUSEUP/RCLICK and
@@ -544,6 +631,11 @@ int NmsVaultWnd::WndNotification(CXWnd* pWnd, unsigned int Message, void* data) 
 
     if (m_pItemList && pWnd == (CXWnd*)m_pItemList) {
         int slot = 0;
+        // Selecting anything at the top level drops child ownership, so the two
+        // lists can never both claim a selection. Exactly one of them owns the
+        // next Withdraw.
+        m_selected_bag_slot = -1;
+        if (m_pContentsList) m_pContentsList->SetCurSel(-1);
         if (ResolveSelection(&slot, nullptr)) {
             m_selected_slot = slot;
             RefreshContents();
@@ -555,8 +647,47 @@ int NmsVaultWnd::WndNotification(CXWnd* pWnd, unsigned int Message, void* data) 
         return 0;
     }
 
+    // Container contents list. This branch did not exist at all: a child click
+    // used to fall through to CSidlScreenWnd, which set the list's own selection
+    // (hence the visible highlight) but recorded nothing, and Withdraw -- which
+    // only ever asked the TOP-LEVEL list -- reported "Nothing selected."
+    //
+    // Deliberately does NOT call RefreshContents(): that would rebuild the very
+    // list the player just clicked and wipe both the highlight and the selection
+    // being recorded. Nothing about the contents needs rebuilding on a selection.
+    if (m_pContentsList && pWnd == (CXWnd*)m_pContentsList) {
+        m_selected_bag_slot = -1;
+        const int row = m_pContentsList->GetCurSel();
+        if (row >= 0 && row < m_contents_rows) {
+            // Row data is the raw DB bag_slot, the same value RefreshContents()
+            // stored and the same one #vault_withdraw_bagitem expects. It is only
+            // meaningful together with m_selected_slot, the parent container.
+            const uint32_t data = m_pContentsList->GetItemData(row);
+            if (data != 0 || m_contents_rows > 0) {
+                m_selected_bag_slot = (int)data;
+            }
+        }
+        return 0;
+    }
+
     if (m_pWithdrawButton && pWnd == (CXWnd*)m_pWithdrawButton) {
         int slot = 0;
+
+        // Child of the selected container: emit the dedicated bag-item command.
+        // Both halves are needed -- #vault_withdraw_bagitem takes the PARENT vault
+        // slot and the bag slot, exactly as global_player.pl:832 dispatches it to
+        // VaultBagWithdraw(), whose SELECT is keyed on (character_id, page, slot,
+        // bag_slot). Neither value is inferred: the parent is the top-level
+        // selection and the bag slot is the clicked row's stored data.
+        //
+        // Guarded on m_selected_slot too, so a stale bag slot can never be sent
+        // with no parent to attach to.
+        if (m_selected_bag_slot >= 0 && m_selected_slot) {
+            EmitSay("#vault_withdraw_bagitem %d %d", m_selected_slot, m_selected_bag_slot);
+            SetStatus("Withdraw requested.");
+            return 0;
+        }
+
         if (!ResolveSelection(&slot, nullptr)) {
             SetStatus("Nothing selected.");
             return 0;
@@ -566,6 +697,28 @@ int NmsVaultWnd::WndNotification(CXWnd* pWnd, unsigned int Message, void* data) 
         // withdrawal itself. Nothing about the transfer is implemented here.
         EmitSay("#vault_withdraw %d", slot);
         SetStatus("Withdraw requested.");
+        return 0;
+    }
+
+    // Deposit Item: delegate and stop. No destination is chosen here, no stack
+    // maths, no cursor mutation. The client does not know the item id and does not
+    // learn where it goes.
+    //
+    // Re-checked rather than trusting the greyed state, because the cursor can
+    // change while the window is open and the Enabled byte may be stale.
+    if (m_pDepositButton && pWnd == (CXWnd*)m_pDepositButton) {
+        if (!CursorHasItem()) {
+            SetStatus("Put an item on your cursor first.");
+            UpdateDepositButtonState();
+            return 0;
+        }
+        // The SAME command the validated tests were run through, on the SAME
+        // EmitSay -> InterpretCmd -> /say -> global_player.pl dispatch path that
+        // #vault_page and #vault_withdraw already use. global_player.pl routes it
+        // to plugin::VaultAutoDeposit($client), which owns every placement rule.
+        // No new opcode, no protocol change, no second implementation.
+        EmitSay("#vault_autodeposit");
+        SetStatus("Deposit requested.");
         return 0;
     }
 
