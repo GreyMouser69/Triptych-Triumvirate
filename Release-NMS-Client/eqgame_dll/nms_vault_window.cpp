@@ -24,7 +24,29 @@ extern void AddXMLFile(const char *filename);
 // (it emits "/say #alttoggle ..." the same way), so nothing new is introduced.
 
 // Page-button item names, matching NMS_VaultWnd.xml.
-static const char* kPageButtonNames[NMS_VAULT_PAGE_MAX] = {
+//
+// TYPE MATTERS -- this table is deliberately `char*`, NOT `const char*`.
+//
+// CSidlScreenWnd declares TWO GetChildItem overloads (EQClasses.h:609/616):
+//     GetChildItem(PCHAR Name)          -> MQ2's own, EQClasses.cpp:87, which
+//                                           recurses via RecurseAndFindName
+//     GetChildItem(CXStr const &)       -> the NATIVE EQ one
+//
+// A `const char*` element cannot bind to PCHAR (`char*`) without dropping
+// const, so the compiler instead selects the native CXStr overload through an
+// implicit `CXStr` temporary. In this RoF2 client that path crashes inside EQ's
+// own CXStr string-pool release: the native lookup runs against a temporary that
+// this client does not handle, and the crash surfaces as a WRITE fault at
+// eqgame+0x4050D1 (`lock dec dword ptr [eax]`) inside the gCXStrMutex-guarded
+// pool-release path at eqgame+0x405B20 -- EQ decrementing a pool pointer that
+// is really an address inside THIS DLL.
+//
+// The fixed-name child lookups below pass string literals and correctly bind to
+// the safe PCHAR overload; only this table went through the broken overload.
+//
+// This is the same defect nms_loot_window.h already documents, and it is why
+// that file declares its table as `char* child;` rather than `const char*`.
+static char* kPageButtonNames[NMS_VAULT_PAGE_MAX] = {
     "NMSVaultPage1", "NMSVaultPage2", "NMSVaultPage3",
     "NMSVaultPage4", "NMSVaultPage5", "NMSVaultPage6",
     "NMSVaultPage7", "NMSVaultPage8", "NMSVaultPage9"
@@ -69,29 +91,33 @@ void NmsVaultWnd::OnSetGameState(int state) {
 // ---------------------------------------------------------------------------
 
 NmsVaultWnd::NmsVaultWnd() : CCustomWnd("NMSVaultWnd") {
-    m_pItemList     = (CListWnd*)  GetChildItem("NMSVaultItemList");
-    m_pContentsList = (CListWnd*)  GetChildItem("NMSVaultContentsList");
-    m_pPageIndicator = (CButtonWnd*)GetChildItem("NMSVaultPageIndicator");
-    m_pPrevButton   = (CButtonWnd*)GetChildItem("NMSVaultPrevPage");
-    m_pNextButton   = (CButtonWnd*)GetChildItem("NMSVaultNextPage");
-    m_pWithdrawButton = (CButtonWnd*)GetChildItem("NMSVaultWithdraw");
-    m_pCloseButton  = (CButtonWnd*)GetChildItem("NMSVaultClose");
+	m_pItemList     = (CListWnd*)  GetChildItem("NMSVaultItemList");
+	m_pContentsList = (CListWnd*)  GetChildItem("NMSVaultContentsList");
+	m_pPageIndicator = (CButtonWnd*)GetChildItem("NMSVaultPageIndicator");
+	m_pPrevButton   = (CButtonWnd*)GetChildItem("NMSVaultPrevPage");
+	m_pNextButton   = (CButtonWnd*)GetChildItem("NMSVaultNextPage");
+	m_pWithdrawButton = (CButtonWnd*)GetChildItem("NMSVaultWithdraw");
+	m_pCloseButton  = (CButtonWnd*)GetChildItem("NMSVaultClose");
 
-    for (int i = 0; i < NMS_VAULT_PAGE_MAX; ++i) {
-        m_pPageButtons[i] = (CButtonWnd*)GetChildItem(kPageButtonNames[i]);
-    }
+	for (int i = 0; i < NMS_VAULT_PAGE_MAX; ++i) {
+		// (PCHAR) cast is deliberate redundancy alongside the `char*` table type:
+		// it pins the call to GetChildItem(PCHAR) -> MQ2's safe RecurseAndFindName
+		// and cannot silently re-select the native GetChildItem(const CXStr&)
+		// overload that crashes this client. See kPageButtonNames above.
+		m_pPageButtons[i] = (CButtonWnd*)GetChildItem((PCHAR)kPageButtonNames[i]);
+	}
 
-    if (!m_pItemList)     WriteChatf("[Vault] Missing NMSVaultItemList");
-    if (!m_pContentsList) WriteChatf("[Vault] Missing NMSVaultContentsList");
+	if (!m_pItemList)     WriteChatf("[Vault] Missing NMSVaultItemList");
+	if (!m_pContentsList) WriteChatf("[Vault] Missing NMSVaultContentsList");
 
-    SetWndNotification(NmsVaultWnd);
-    (void)m_pPageIndicator;   // bound, present for layout; see Refresh()
+	SetWndNotification(NmsVaultWnd);
+	(void)m_pPageIndicator;   // bound, present for layout; see Refresh()
 
-    // Start on page 1; ShowPage()/OPEN overrides this.
-    m_page = NMS_VAULT_PAGE_MIN;
-    m_selected_slot = 0;
-    m_rows = 0;
-    m_contents_rows = 0;
+	// Start on page 1; ShowPage()/OPEN overrides this.
+	m_page = NMS_VAULT_PAGE_MIN;
+	m_selected_slot = 0;
+	m_rows = 0;
+	m_contents_rows = 0;
 }
 
 NmsVaultWnd::~NmsVaultWnd() {
@@ -342,11 +368,31 @@ void NmsVaultWnd::RefreshContents() {
 void NmsVaultWnd::RefreshPageButtons() {
     for (int i = 0; i < NMS_VAULT_PAGE_MAX; ++i) {
         if (!m_pPageButtons[i]) continue;
-        // CButtonWnd::SetCheck, not SetChecked -- this is the method that exists in
-        // EQClasses.h. The active page's button reads as pressed so the current
-        // page is visible at a glance.
-        m_pPageButtons[i]->SetCheck((i + 1) == m_page);
+
+        // Direct member assignment REPLACES the CButtonWnd::SetCheck() native
+        // import call that stood here before.
+        //
+        // WHY. SetCheck() is an EQLIB_OBJECT thunk (CButtonWnd__SetCheck_x ==
+        // 0x54FBE0) and this client has already established that path as unsafe:
+        // the loot window (nms_loot_window.cpp) and the waypoint window
+        // (waypoint_window.cpp) both write `Checked` as a plain member for exactly
+        // this reason, and nms_loot_window.h names SetCheck() as "the broken ...
+        // import".
+        //
+        // `Checked` is the BYTE at offset 0x1e4 of the CSW block that
+        // CSidlScreenWnd embeds (EQUIStructs.h:296-303, EQClasses.h:648), so it is
+        // directly addressable on a CButtonWnd with no header change. This is the
+        // same proven pattern already shipping in this DLL.
+        //
+        // SEMANTICS ARE UNCHANGED. SetCheck(true/false) wrote this same byte to
+        // 1/0; the ternary below writes that byte to 1/0. Page selection is not
+        // affected: m_page is owned by the model and only ever moved in
+        // ShowPage(), and PageButtonFor()/RequestPage() are untouched. The active
+        // page's button reads as pressed so the current page is visible at a
+        // glance.
+        m_pPageButtons[i]->Checked = ((i + 1) == m_page) ? 1 : 0;
     }
+
     // Prev/Next are hidden at the ends so the page can never go out of range.
     //
     // CButtonWnd derives from CSidlScreenWnd, NOT from CXWnd, so Show() is not
