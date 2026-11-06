@@ -1,3 +1,5 @@
+#include "fellowship_campfire.h"
+
 /*	EQEMu: Everquest Server Emulator
 	Copyright (C) 2001-2003 EQEMu Development Team (http://eqemulator.net)
 
@@ -371,6 +373,14 @@ bool Zone::LoadGroundSpawns() {
 			const uint32 max_allowed = g.spawn[slot_id].max_allowed;
 
 			if (inst) {
+				// Fresh ground-spawn clickies must have their defined charges.
+				// CreateItem defaults to zero; that otherwise produces unusable
+				// quest scrolls such as Touch of the Six. Dropped items retain
+				// their existing charges through the separate Object path.
+				if (inst->GetItem()->MaxCharges > 0) {
+					inst->SetCharges(inst->GetItem()->MaxCharges);
+				}
+
 				for (uint32 i = 0; i < max_allowed; i++) {
 					auto object = new Object(
 						inst,
@@ -1128,6 +1138,8 @@ Zone::Zone(uint32 in_zoneid, uint32 in_instanceid, const char* in_short_name)
 Zone::~Zone() {
 	LogInfo("Zone destructor called for zone [{}]", short_name);
 
+	ClearFellowshipCampfires();
+
 	spawn2_list.Clear();
 	if (worldserver.Connected()) {
 		worldserver.SetZoneData(0);
@@ -1428,7 +1440,20 @@ bool Zone::LoadZoneCFG(const char* filename, uint16 instance_version)
 	is_hotzone            = z->hotzone != 0;
 	m_client_update_range = z->client_update_range;
 	default_ruleset       = z->ruleset;
-	allow_mercs           = true;
+	// Mercenary permission for this zone. zone.allow_mercs is optional schema: if the column
+	// is absent the query fails and mercs stay allowed, which is the pre-v280 behaviour. The
+	// hire/unsuspend path already consults AllowMercs(); until now nothing ever set it false.
+	allow_mercs = true;
+	{
+		auto merc_zone = content_db.QueryDatabase(fmt::format(
+			"SELECT allow_mercs FROM zone WHERE zoneidnumber = {} AND version = {} LIMIT 1",
+			ZoneID(filename), static_cast<int>(z->version)
+		));
+		if (merc_zone.Success() && merc_zone.RowCount() && merc_zone.begin()[0]) {
+			allow_mercs = Strings::ToInt(merc_zone.begin()[0]) != 0;
+		}
+		LogInfo("[Mercs] zone [{}] allow_mercs [{}]", filename, allow_mercs ? 1 : 0);
+	}
 	m_graveyard_id        = z->graveyard_id;
 	m_max_clients         = z->maxclients;
 
@@ -1449,9 +1474,18 @@ bool Zone::LoadZoneCFG(const char* filename, uint16 instance_version)
 	}
 
 	// overwrite with our internal variables
-	strcpy(newzone_data.zone_short_name, GetShortName());
-	strcpy(newzone_data.zone_long_name, GetLongName());
-	strcpy(newzone_data.zone_short_name2, GetShortName());
+	// versioned zones advertise the version row's names: the client resolves its zone
+	// geometry file from the short name sent here (e.g. lavastorm1.eqg for lavastorm v1)
+	if (instance_version > 0 && !z->short_name.empty()) {
+		strn0cpy(newzone_data.zone_short_name, z->short_name.c_str(), sizeof(newzone_data.zone_short_name));
+		strn0cpy(newzone_data.zone_long_name, z->long_name.c_str(), sizeof(newzone_data.zone_long_name));
+		strn0cpy(newzone_data.zone_short_name2, z->short_name.c_str(), sizeof(newzone_data.zone_short_name2));
+	}
+	else {
+		strcpy(newzone_data.zone_short_name, GetShortName());
+		strcpy(newzone_data.zone_long_name, GetLongName());
+		strcpy(newzone_data.zone_short_name2, GetShortName());
+	}
 
 	LogInfo(
 		"Successfully loaded zone headers for zone [{}] long_name [{}] version [{}] instance_id [{}]",
@@ -1563,6 +1597,8 @@ uint32 Zone::CountAuth() {
 }
 
 bool Zone::Process() {
+	ProcessFellowshipCampfires();
+
 	spawn_conditions.Process();
 
 	if (spawn2_timer.Check()) {

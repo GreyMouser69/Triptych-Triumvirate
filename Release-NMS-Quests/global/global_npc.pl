@@ -283,7 +283,24 @@ sub nms_share_corpse_loot {
 }
 
 sub EVENT_DEATH_COMPLETE {
+    eval { plugin::AprilFools_OnDeath($npc); };
+
     plugin::CustomEventNPCDeathEntry($killer_id);
+
+    # Mechamatic Guardian (zone 447): the nine named rares are gated behind
+    # ~15 trash kills (Rasper openGuardian). Each trash death nudges spawn
+    # condition 1 up; the rare spawns carry cond_value 15 and only appear
+    # once it is crossed. Conditions are per-instance, so a fresh expedition
+    # starts the count at 0.
+    if ($zoneid == 447) {
+        my $nid = $npc->GetNPCTypeID();
+        if ($nid >= 447000 && $nid <= 447069) {
+            my $cur = quest::get_spawn_condition('guardian', $instanceid, 1);
+            if ($cur < 15) {
+                quest::spawn_condition('guardian', $instanceid, 1, $cur + 1);
+            }
+        }
+    }
 
     if (defined($killed_corpse_id)) {
         my $corpse = $entity_list->GetCorpseByID($killed_corpse_id);
@@ -338,6 +355,8 @@ sub EVENT_DEATH_COMPLETE {
 }
 
 sub EVENT_AGGRO {
+    eval { plugin::AprilFools_OnEngage($npc); };
+
     if (plugin::IsNMS() && $instanceid) {
         my $expedition = quest::get_expedition();
         if ($expedition) {
@@ -403,4 +422,6 @@ sub EVENT_DAMAGE_GIVEN
 
 sub EVENT_KILLED_MERIT {
     plugin::ProcessSlayerCredit($client, $npc, $entity_list);
+    # Permanent tradeskill skill-ups for raid targets (NMS_tradeskill_utils.pl).
+    plugin::AwardTradeskillKillCredit($client, $npc);
 }

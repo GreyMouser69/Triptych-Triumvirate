@@ -59,6 +59,8 @@ public:
 	void            AddReplayLockout(uint32_t seconds);
 	void            AddReplayLockoutDuration(int seconds);
 	void            AddReplayLockoutDuration(int seconds, bool members_only);
+	bool            AdvanceAchievementProgress(uint32_t achievement_id, uint32_t component_type, uint32_t component_id, uint32_t value);
+	bool            CompleteAchievement(uint32_t achievement_id);
 	uint32_t        GetID();
 	int             GetInstanceID();
 	std::string     GetLeaderName();
@@ -76,6 +78,7 @@ public:
 	bool            HasLockout(std::string event_name);
 	bool            HasReplayLockout();
 	bool            IsLocked();
+	void            RemoveAllMembers();
 	void            RemoveCompass();
 	void            RemoveLockout(std::string event_name);
 	void            SetCompass(uint32_t zone_id, float x, float y, float z);

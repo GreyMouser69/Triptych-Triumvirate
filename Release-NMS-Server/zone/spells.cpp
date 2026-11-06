@@ -66,6 +66,8 @@ Copyright (C) 2001-2002 EQEMu Development Team (http://eqemu.org)
 	and not SpellFinished().
 */
 
+#include "quest_item_target_permissions.h"
+
 #include "../common/bodytypes.h"
 #include "../common/classes.h"
 #include "../common/global_define.h"
@@ -1150,18 +1152,48 @@ bool Mob::DoCastingChecksOnTarget(bool check_on_casting, int32 spell_id, Mob *sp
 						);
 
 				if (ret == -1) {
-					LogSpells("Adding buff [%d] to target [%s] failed: stacking prevented by spell [%d] "
-							"in slot [%d] with caster level [%d]",
+					// The rejected-stacking path used to hand "%d/%s" to LogSpells and Message().
+					// LogSpells expands to OutF -> fmt::format (which has no %s), so the intended
+					// substitution never happened the way it reads here. The 2026-10-11 14:15
+					// codecay crash dies in exactly this branch, in
+					// vStringFormat <- EQEmuLogSys::Out <- DoCastingChecksOnTarget, inside the
+					// string helper - i.e. reading a %s argument that is not a valid string.
+					// Use fmt placeholders so the name is formatted, not passed as a raw pointer.
+					//
+					// spell_target is also re-resolved: this path is reached from SpellFinished
+					// after the EVENT_CAST_ON script hook, and from weapon procs. If a quest script
+					// removed the target, the pointer we were handed is dangling and GetName()
+					// reads freed (or recycled) memory.
+					Mob *checked_target = entity_list.IsMobInZone(spell_target) ? spell_target : nullptr;
+
+					if (checked_target) {
+						LogSpells(
+							"Adding buff [{}] to target [{}] failed: stacking prevented by spell [{}] "
+							"in slot [{}] with caster level [{}]",
 							spell_id,
-							spell_target->GetName(),
+							checked_target->GetName(),
 							buff_spellid,
 							buffslot,
-							curbuf.casterlevel);
+							curbuf.casterlevel
+						);
+					}
+					else {
+						// Don't go near the name of a target that is no longer in the zone.
+						LogSpells(
+							"Adding buff [{}] failed: stacking prevented by spell [{}] in slot [{}] "
+							"with caster level [{}] (target no longer in zone)",
+							spell_id,
+							buff_spellid,
+							buffslot,
+							curbuf.casterlevel
+						);
+					}
+
 					if (IsClient() && RuleB(Client, UseLiveBlockedMessage)) {
 						Message(Chat::Red,
 								"Your %s did not take hold on %s. (Blocked by %s.)",
 								spells[spell_id].name,
-								spell_target->GetName(),
+								checked_target ? checked_target->GetName() : "your target",
 								spells[buff_spellid].name
 								);
 					}
@@ -4650,8 +4682,64 @@ bool Mob::SpellOnTarget(
 
 				}
 
+				// Dummy item spells that implement specific NPC quest interactions are
+				// not general buffs. Keep every native cast/target check and exempt only
+				// this beneficial-to-NPC permission decision for the exact quest context.
+				const bool quest_item_target_allowed = [&]() {
+					if ((spell_id != 33562 && spell_id != 33564 && spell_id != 9255 && spell_id != 9181) ||
+						isproc || casting_spell_id != spell_id || !IsClient() ||
+						(casting_spell_slot != CastingSlot::Item && casting_spell_slot != CastingSlot::PotionBelt)) {
+						return false;
+					}
+					const auto *item = CastToClient()->GetInv().GetItem(casting_spell_inventory_slot);
+					if (!item || !item->IsClassCommon() || !item->GetItem()) {
+						return false;
+					}
+					QuestItemTargetPermissions::Context context;
+					context.spell_id = spell_id;
+					context.zone_id = zone->GetZoneID();
+					context.item_id = item->GetID();
+					context.item_click_spell_id = item->GetItem()->Click.Effect;
+					context.authentic_item_cast = true;
+					context.expected_spell_shape =
+						spells[spell_id].good_effect == BENEFICIAL_EFFECT &&
+						spells[spell_id].target_type == ST_Target &&
+						spells[spell_id].pcnpc_only_flag == ((spell_id == 9255 || spell_id == 9181) ? 0 : PCNPCOnlyFlagType::NPC) &&
+						spells[spell_id].effect_id[0] == (spell_id == 9181 ? SE_Blank : SE_CHA) &&
+						spells[spell_id].base_value[0] == (spell_id == 9181 ? 0 : 1);
+					for (int effect = 1; effect < EFFECT_COUNT; ++effect) {
+						if (spells[spell_id].effect_id[effect] != SE_Blank ||
+							(spell_id == 9181 && spells[spell_id].base_value[effect] != 0)) {
+							context.expected_spell_shape = false;
+						}
+					}
+					context.correct_task_activity_active = CastToClient()->IsTaskActivityActive(
+						spell_id == 9255 ? 3040105 : 910023, spell_id == 9255 ? 1 : (spell_id == 33562 ? 5 : 14)
+					);
+					if (spell_id == 9181) {
+						context.correct_task_activity_active = false;
+						if (spelltar->IsNPC()) {
+							for (size_t activity = 0; activity < QuestItemTargetPermissions::Moorwalkers.size(); ++activity) {
+								if (spelltar->GetNPCTypeID() == QuestItemTargetPermissions::Moorwalkers[activity]) {
+									context.correct_task_activity_active = CastToClient()->IsTaskActivityActive(3040208, activity);
+									break;
+								}
+							}
+						}
+					}
+					context.target_is_npc = spelltar->IsNPC();
+					if (context.target_is_npc) {
+						context.target_npc_type_id = spelltar->GetNPCTypeID();
+						context.target_race = spelltar->GetRace();
+						context.target_is_owned = spelltar->GetOwnerID() != 0 || spelltar->CastToNPC()->GetSwarmOwner() != 0;
+						context.target_hp_ratio = spelltar->GetHPRatio();
+						context.target_attackable = spell_id == 33564 && IsAttackAllowed(spelltar, true);
+					}
+					return QuestItemTargetPermissions::Allows(context);
+				}();
+
 				if (
-					(!IsAllianceSpell(spell_id) && !IsBeneficialAllowed(spelltar)) ||
+					(!IsAllianceSpell(spell_id) && !IsBeneficialAllowed(spelltar) && !quest_item_target_allowed) ||
 					(IsGroupOnlySpell(spell_id) &&
 						!(
 							(
@@ -6464,7 +6552,7 @@ void Client::UnmemSpellAll(bool update_client)
 }
 
 uint32 Client::GetSpellIDByBookSlot(int book_slot) {
-	if (book_slot <= EQ::spells::SPELLBOOK_SIZE) {
+	if (book_slot < EQ::spells::SPELLBOOK_SIZE) {
 		return GetSpellByBookSlot(book_slot);
 	}
 	return -1;

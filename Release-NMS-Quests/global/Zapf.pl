@@ -40,21 +40,27 @@ sub EVENT_ITEM {
 	#:: Match a 66615 - Gold Ticket
 	if (plugin::check_handin(\%itemcount, 66615 => 1)) {
 		my @prizes = (11668, 59509);
-		foreach $prizes (@prizes) {
+		foreach my $prizes (@prizes) {
 			next if (plugin::check_hasitem($client, $prizes));
-			quest::summonitem(1$prizes);
+			quest::summonitem($prizes);
 			last;
 		}
 	}
 }
 
 sub Train {
-	if ($status => 80) {
+	if ($status >= 80) {
 		$client->Message( 15, "Your experiences across the realm have infused you with increased power and knowledge..." );
 		#:: Set all available skills to maximum for race/class at current level
 		foreach my $skill ( 0 .. 74 ) {
 			next unless $client->CanHaveSkill($skill);
-			my $maxSkill = $client->MaxSkill( $skill, $client->GetClass(), $ulevel );
+			my $maxSkill = 0;
+			my $class_bits = $client->GetClassesBitmask() || $client->GetClassBitmask();
+			for my $class_id (1 .. 16) {
+				next unless ($class_bits & (1 << ($class_id - 1)));
+				my $class_max = $client->MaxSkill( $skill, $class_id, $ulevel );
+				$maxSkill = $class_max if $class_max > $maxSkill;
+			}
 			next unless $maxSkill > $client->GetRawSkill($skill);
 			$client->SetSkill( $skill, $maxSkill );
 		}
@@ -72,7 +78,7 @@ sub EVENT_SAY {
 	elsif ($text=~/hail/i) {
 		quest::say("Hello $name! Don't let my little friend fool you--he is quite powerful!");
 	}
-	if ($status => 80) {
+	if ($status >= 80) {
 		if ($text=~/faction/i) {
 			quest::say("I can adjust your faction.  Hand me 1 copper to lose 500, 1 silver to lose 100, 1 gold to gain 100, and 1 platinum to gain 500--then speak the faction number, or the faction name.");
 		}

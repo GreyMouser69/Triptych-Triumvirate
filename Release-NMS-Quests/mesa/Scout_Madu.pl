@@ -30,16 +30,84 @@ sub EVENT_SAY {
   if ($text=~/arms/i) {
     quest::say("For the arms piece, I will need the proper supplies. Bring them to me and I will fashion your armor.");
   }
+  # Task series (tasks 600611-600621): Dromrek set, Centaur Troubles, Soothe.
+  if ($text=~/hail/i) {
+    my %status = (
+      600611 => "The dromrek caves east of the lake. Bashers and hunters - count them, and count them dead.",
+      600612 => "Their [cooks] and [provisioners] keep the camps fed. Four of each.",
+      600613 => "Parlay again, my way. Six bashers, six hunters.",
+      600614 => "Bigone still stomps the flats, with shamans chanting behind him.",
+      600615 => "Their [hunters] scout our roads. Eight of them, less.",
+      600616 => "Dromrek must [die]. All of them you can find.",
+      600617 => "A [beast] has gone savage in the minohten herds. I need pollen and a cull.",
+      600618 => "The centaurs will test you: widows, snakes, and a harpy or two.",
+      600619 => "The Tuffein [thugs] raid centaur lands. Ten fewer would help.",
+      600620 => "The centaur herds sicken. Research the [malady] - dark widows and murkwater oozes.",
+      600621 => "The dromrek shamans brew the sickness. [Remedy] it at the source.",
+    );
+    my @act = grep { quest::istaskactive($_) } (600611..600621);
+    quest::say($status{$act[0]}) if @act && exists $status{$act[0]};
+  }
+  if ($text=~/dromrek/i && !quest::istaskactive(600611) && !quest::istaskcompleted(600611)) {
+    quest::say("Slay six dromrek bashers and four dromrek hunters, then report to me. Their caves lie east of the lake.");
+    quest::assigntask(600611);
+  }
+  if ($text=~/parlay/i && !quest::istaskactive(600612) && !quest::istaskcompleted(600612)) {
+    quest::say("Their supply line is soft. Four Dromrek Cooks and four Dromrek Provisioners. Then we will talk.");
+    quest::assigntask(600612);
+  }
+  if ($text=~/again/i && !quest::istaskactive(600613) && !quest::istaskcompleted(600613)) {
+    quest::say("Six bashers and six hunters. The giants never learn.");
+    quest::assigntask(600613);
+  }
+  if ($text=~/threat/i && !quest::istaskactive(600614) && !quest::istaskcompleted(600614)) {
+    quest::say("Bigone, the great basher, and eight shamans behind him. Break the threat and come back.");
+    quest::assigntask(600614);
+  }
+  if ($text=~/scouts/i && !quest::istaskactive(600615) && !quest::istaskcompleted(600615)) {
+    quest::say("Eight dromrek hunters scout our roads. Un-scout them.");
+    quest::assigntask(600615);
+  }
+  if ($text=~/die/i && !quest::istaskactive(600616) && !quest::istaskcompleted(600616)) {
+    quest::say("Six bashers, six hunters, six shamans. Dromrek must die, and you are the reason why.");
+    quest::assigntask(600616);
+  }
+  if ($text=~/beast/i && !quest::istaskactive(600617) && !quest::istaskcompleted(600617)) {
+    quest::say("Bring refined jumjum pollen from the hive bixies, cull four Minohten guards, and we will soothe the savage beast one way or another.");
+    quest::assigntask(600617);
+  }
+  if ($text=~/centaur/i && !quest::istaskactive(600618) && !quest::istaskcompleted(600618)) {
+    quest::say("Prove yourself to the centaurs: four mesa widows, eight highland snakes, two harpy hunters. Klassr watches from the lake.");
+    quest::assigntask(600618);
+  }
+  if ($text=~/thug/i && quest::istaskcompleted(600618) && !quest::istaskactive(600619) && !quest::istaskcompleted(600619)) {
+    quest::say("Ten Tuffein guards raid the centaur lands. Reduce the menace and Klassr will remember it.");
+    quest::assigntask(600619);
+  }
+  if ($text=~/malady/i && quest::istaskcompleted(600619) && !quest::istaskactive(600620) && !quest::istaskcompleted(600620)) {
+    quest::say("The herds sicken. Six dark widows and six murkwater oozes - bring me word of what spreads it.");
+    quest::assigntask(600620);
+  }
+  if ($text=~/remedy/i && quest::istaskcompleted(600620) && !quest::istaskactive(600621) && !quest::istaskcompleted(600621)) {
+    quest::say("The dromrek shamans brew the malady. Six shamans and six highland snakes, and the cure is as good as brewed.");
+    quest::assigntask(600621);
+  }
 }
 
 sub EVENT_ITEM {
-  my $class = $client->GetClass();
+  my $class_bits = $client->GetClassesBitmask() || $client->GetClassBitmask();
 
   # Chest
   if (plugin::check_handin(\%itemcount, 88128 => 1)) {
     my %reward = (1 => 53126, 2 => 53133, 3 => 53140, 4 => 53147, 5 => 53154, 6 => 53161, 7 => 53168, 8 => 53175, 9 => 53182, 10 => 53189, 11 => 53196, 12 => 53203, 13 => 53210, 14 => 53217, 15 => 53224, 16 => 53231);
-    if (exists $reward{$class}) {
-      quest::summonitem($reward{$class});
+    my $given = 0;
+    for my $class_id (1 .. 16) {
+      next unless ($class_bits & (1 << ($class_id - 1)));
+      next unless (exists $reward{$class_id});
+      quest::summonitem($reward{$class_id});
+      $given++;
+    }
+    if ($given) {
       quest::say("Well gathered. Here is your armor, scout.");
     } else {
       quest::say("That armor is not for your calling, friend.");
@@ -51,8 +119,14 @@ sub EVENT_ITEM {
   # Wrist
   if (plugin::check_handin(\%itemcount, 13753 => 5, 13754 => 3, 13755 => 1)) {
     my %reward = (1 => 53123, 2 => 53130, 3 => 53137, 4 => 53144, 5 => 53151, 6 => 53158, 7 => 53165, 8 => 53172, 9 => 53179, 10 => 53186, 11 => 53193, 12 => 53200, 13 => 53207, 14 => 53214, 15 => 53221, 16 => 53228);
-    if (exists $reward{$class}) {
-      quest::summonitem($reward{$class});
+    my $given = 0;
+    for my $class_id (1 .. 16) {
+      next unless ($class_bits & (1 << ($class_id - 1)));
+      next unless (exists $reward{$class_id});
+      quest::summonitem($reward{$class_id});
+      $given++;
+    }
+    if ($given) {
       quest::say("Well gathered. Here is your armor, scout.");
     } else {
       quest::say("That armor is not for your calling, friend.");
@@ -64,8 +138,14 @@ sub EVENT_ITEM {
   # Feet
   if (plugin::check_handin(\%itemcount, 13750 => 5, 13751 => 3, 13752 => 1)) {
     my %reward = (1 => 53125, 2 => 53132, 3 => 53139, 4 => 53146, 5 => 53153, 6 => 53160, 7 => 53167, 8 => 53174, 9 => 53181, 10 => 53188, 11 => 53195, 12 => 53202, 13 => 53209, 14 => 53216, 15 => 53223, 16 => 53230);
-    if (exists $reward{$class}) {
-      quest::summonitem($reward{$class});
+    my $given = 0;
+    for my $class_id (1 .. 16) {
+      next unless ($class_bits & (1 << ($class_id - 1)));
+      next unless (exists $reward{$class_id});
+      quest::summonitem($reward{$class_id});
+      $given++;
+    }
+    if ($given) {
       quest::say("Well gathered. Here is your armor, scout.");
     } else {
       quest::say("That armor is not for your calling, friend.");
@@ -77,8 +157,14 @@ sub EVENT_ITEM {
   # Head
   if (plugin::check_handin(\%itemcount, 13041 => 5, 13417 => 3, 97234 => 1)) {
     my %reward = (1 => 53121, 2 => 53128, 3 => 53135, 4 => 53142, 5 => 53149, 6 => 53156, 7 => 53163, 8 => 53170, 9 => 53177, 10 => 53184, 11 => 53191, 12 => 53198, 13 => 53205, 14 => 53212, 15 => 53219, 16 => 53226);
-    if (exists $reward{$class}) {
-      quest::summonitem($reward{$class});
+    my $given = 0;
+    for my $class_id (1 .. 16) {
+      next unless ($class_bits & (1 << ($class_id - 1)));
+      next unless (exists $reward{$class_id});
+      quest::summonitem($reward{$class_id});
+      $given++;
+    }
+    if ($given) {
       quest::say("Well gathered. Here is your armor, scout.");
     } else {
       quest::say("That armor is not for your calling, friend.");
@@ -90,8 +176,14 @@ sub EVENT_ITEM {
   # Hands
   if (plugin::check_handin(\%itemcount, 97229 => 5, 88121 => 3, 13088 => 1)) {
     my %reward = (1 => 53124, 2 => 53131, 3 => 53138, 4 => 53145, 5 => 53152, 6 => 53159, 7 => 53166, 8 => 53173, 9 => 53180, 10 => 53187, 11 => 53194, 12 => 53201, 13 => 53208, 14 => 53215, 15 => 53222, 16 => 53229);
-    if (exists $reward{$class}) {
-      quest::summonitem($reward{$class});
+    my $given = 0;
+    for my $class_id (1 .. 16) {
+      next unless ($class_bits & (1 << ($class_id - 1)));
+      next unless (exists $reward{$class_id});
+      quest::summonitem($reward{$class_id});
+      $given++;
+    }
+    if ($given) {
       quest::say("Well gathered. Here is your armor, scout.");
     } else {
       quest::say("That armor is not for your calling, friend.");
@@ -103,8 +195,14 @@ sub EVENT_ITEM {
   # Legs
   if (plugin::check_handin(\%itemcount, 88127 => 1)) {
     my %reward = (1 => 53127, 2 => 53134, 3 => 53141, 4 => 53148, 5 => 53155, 6 => 53162, 7 => 53169, 8 => 53176, 9 => 53183, 10 => 53190, 11 => 53197, 12 => 53204, 13 => 53211, 14 => 53218, 15 => 53225, 16 => 53232);
-    if (exists $reward{$class}) {
-      quest::summonitem($reward{$class});
+    my $given = 0;
+    for my $class_id (1 .. 16) {
+      next unless ($class_bits & (1 << ($class_id - 1)));
+      next unless (exists $reward{$class_id});
+      quest::summonitem($reward{$class_id});
+      $given++;
+    }
+    if ($given) {
       quest::say("Well gathered. Here is your armor, scout.");
     } else {
       quest::say("That armor is not for your calling, friend.");
@@ -116,8 +214,14 @@ sub EVENT_ITEM {
   # Arms
   if (plugin::check_handin(\%itemcount, 13753 => 5, 13754 => 3, 13750 => 5, 13751 => 3, 88121 => 5, 13067 => 3, 13041 => 5, 13417 => 3)) {
     my %reward = (1 => 53122, 2 => 53129, 3 => 53136, 4 => 53143, 5 => 53150, 6 => 53157, 7 => 53164, 8 => 53171, 9 => 53178, 10 => 53185, 11 => 53192, 12 => 53199, 13 => 53206, 14 => 53213, 15 => 53220, 16 => 53227);
-    if (exists $reward{$class}) {
-      quest::summonitem($reward{$class});
+    my $given = 0;
+    for my $class_id (1 .. 16) {
+      next unless ($class_bits & (1 << ($class_id - 1)));
+      next unless (exists $reward{$class_id});
+      quest::summonitem($reward{$class_id});
+      $given++;
+    }
+    if ($given) {
       quest::say("Well gathered. Here is your armor, scout.");
     } else {
       quest::say("That armor is not for your calling, friend.");

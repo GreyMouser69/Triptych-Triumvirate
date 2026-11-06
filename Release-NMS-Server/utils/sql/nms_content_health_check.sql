@@ -1,12 +1,9 @@
 -- ============================================================================
 -- Triptych content health check - verifies the DATA each custom-manifest
--- version is supposed to deliver, without trusting db_version. It contains
--- targeted checks for selected payloads from v18-v42, v50 (the alternate-
--- currency self-heal), v62-v63 (the Fabled season schema), v71 (Triune blessing
--- names), v80 (the vault/loot player-schema objects and rule rows), and v81 (the
--- on-demand Vault Speaker content row). It is not exhaustive coverage of every
--- feature in those versions and does not audit
--- v43-v49, v51-v61, v64-v70, or v72-v79.
+-- version is supposed to deliver, without trusting db_version. Coverage is
+-- full for v18-v42 plus targeted checks for v50 (the alternate-currency
+-- self-heal), v62-v63 (the Fabled season schema), v71 (blessing renames)
+-- and v93-v96 (the Nautilus Vault).
 --
 -- Why this exists: we have now twice found servers whose custom_version was
 -- stamped PAST an entry whose content never landed (a half-apply healed by a
@@ -15,8 +12,9 @@
 -- expectation - anything that misses its expected value identifies exactly
 -- which payload is absent.
 --
--- custom_version is printed for context only. This file does not assert a
--- version ceiling because it does not inspect every custom migration.
+-- Expected custom_version on a fully-booted server: 96. A fresh import only
+-- reaches that once the first `world` boot applies the outstanding custom
+-- migrations (v35-v96). So "96" is correct only after first boot.
 --
 -- Run (Windows / MariaDB):
 --   "C:\Program Files\MariaDB 12.3\bin\mariadb.exe" -u <user> -p <dbname> < nms_content_health_check.sql
@@ -30,7 +28,7 @@
 -- READ-ONLY: SELECT/SHOW only. Safe on any server, any number of times.
 -- ============================================================================
 
-SELECT 'db_version.custom_version (informational; no expected value)' AS what, custom_version AS value FROM db_version LIMIT 1;
+SELECT 'db_version.custom_version (expect 63 once a v63 binary has booted)' AS what, custom_version AS value FROM db_version LIMIT 1;
 
 -- ---- v18 / v23: Beastlord spell merchant + scrolls -------------------------
 SELECT 'v23 bl merchant npc (expect 1)' AS what, COUNT(*) AS value FROM npc_types WHERE id = 1120001300;
@@ -137,47 +135,50 @@ SELECT 'v63 fabled_season inactive (expect 0)' AS what, active AS value FROM fab
 -- ---- v71: bazaar "Echo of X" blessings renamed to "Triune of X" --------------------------
 SELECT 'v71 triune blessings renamed (expect 9)' AS what, COUNT(*) AS value FROM spells_new WHERE id IN (17779,36856,43002,43003,43004,43005,43006,43007,43008) AND `name` LIKE 'Triune of %';
 
--- ---- v80: vault / shared-loot player-schema state ---------------------------------------
--- Table checks use information_schema only, so a missing table reports zero instead of
--- aborting the audit. Exact column-name counts plus type/default/index checks identify a
--- pre-existing table that CREATE TABLE IF NOT EXISTS could not repair.
-SELECT 'v80 nms_vault table (expect 1)' AS what, COUNT(*) AS value FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_vault' AND ENGINE = 'InnoDB' AND TABLE_COLLATION LIKE 'utf8mb4%';
-SELECT 'v80 nms_vault exact columns (expect 13)' AS what, COUNT(*) AS value FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_vault' AND COLUMN_NAME IN ('character_id','page','slot','item_id','charges','augment_one','augment_two','augment_three','augment_four','augment_five','augment_six','attuned','updated_at');
-SELECT 'v80 nms_vault total columns (expect 13)' AS what, COUNT(*) AS value FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_vault';
-SELECT 'v80 nms_vault non-null columns (expect 13)' AS what, COUNT(*) AS value FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_vault' AND IS_NULLABLE = 'NO';
-SELECT 'v80 nms_vault unsigned columns (expect 10)' AS what, COUNT(*) AS value FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_vault' AND COLUMN_NAME IN ('character_id','page','slot','item_id','augment_one','augment_two','augment_three','augment_four','augment_five','augment_six') AND COLUMN_TYPE LIKE '%unsigned%';
-SELECT 'v80 nms_vault numeric types (expect 12)' AS what, COUNT(*) AS value FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_vault' AND ((COLUMN_NAME IN ('character_id','item_id','augment_one','augment_two','augment_three','augment_four','augment_five','augment_six') AND DATA_TYPE = 'int') OR (COLUMN_NAME IN ('page','attuned') AND DATA_TYPE = 'tinyint') OR (COLUMN_NAME IN ('slot','charges') AND DATA_TYPE = 'smallint'));
-SELECT 'v80 nms_vault signed/default item-state columns (expect 8)' AS what, COUNT(*) AS value FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_vault' AND ((COLUMN_NAME = 'charges' AND DATA_TYPE = 'smallint' AND COLUMN_TYPE NOT LIKE '%unsigned%' AND COLUMN_DEFAULT = '1') OR (COLUMN_NAME IN ('augment_one','augment_two','augment_three','augment_four','augment_five','augment_six') AND DATA_TYPE = 'int' AND COLUMN_DEFAULT = '0') OR (COLUMN_NAME = 'attuned' AND DATA_TYPE = 'tinyint' AND COLUMN_TYPE NOT LIKE '%unsigned%' AND COLUMN_DEFAULT = '0'));
-SELECT 'v80 nms_vault timestamp (expect 1)' AS what, COUNT(*) AS value FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_vault' AND COLUMN_NAME = 'updated_at' AND DATA_TYPE = 'timestamp' AND IS_NULLABLE = 'NO' AND COLUMN_DEFAULT LIKE 'current_timestamp%' AND EXTRA LIKE '%on update current_timestamp%';
-SELECT 'v80 nms_vault primary key (expect character_id,page,slot)' AS what, GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX) AS value FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_vault' AND INDEX_NAME = 'PRIMARY';
-SELECT 'v80 nms_vault idx_char (expect character_id)' AS what, GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX) AS value FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_vault' AND INDEX_NAME = 'idx_char';
+-- ---- v93: Nautilus Vault player table ------------------------------------------------
+SELECT 'v93 character_nms_vault (expect 1)' AS what, COUNT(*) AS value
+  FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'character_nms_vault';
+SELECT 'v93 vault primary key named cols (expect 3)' AS what, COUNT(*) AS value
+  FROM information_schema.statistics
+  WHERE table_schema = DATABASE() AND table_name = 'character_nms_vault'
+    AND index_name = 'PRIMARY'
+    AND column_name IN ('character_id', 'slot', 'bag_slot');
+SELECT 'v93 vault primary key total cols (expect 3)' AS what, COUNT(*) AS value
+  FROM information_schema.statistics
+  WHERE table_schema = DATABASE() AND table_name = 'character_nms_vault'
+    AND index_name = 'PRIMARY';
+SELECT 'v93 vault unique indexes (expect 1)' AS what, COUNT(DISTINCT index_name) AS value
+  FROM information_schema.statistics
+  WHERE table_schema = DATABASE() AND table_name = 'character_nms_vault'
+    AND non_unique = 0;
 
-SELECT 'v80 nms_vault_bag_items table (expect 1)' AS what, COUNT(*) AS value FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_vault_bag_items' AND ENGINE = 'InnoDB' AND TABLE_COLLATION LIKE 'utf8mb4%';
-SELECT 'v80 nms_vault_bag_items exact columns (expect 14)' AS what, COUNT(*) AS value FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_vault_bag_items' AND COLUMN_NAME IN ('character_id','page','slot','bag_slot','item_id','charges','augment_one','augment_two','augment_three','augment_four','augment_five','augment_six','attuned','updated_at');
-SELECT 'v80 nms_vault_bag_items total columns (expect 14)' AS what, COUNT(*) AS value FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_vault_bag_items';
-SELECT 'v80 nms_vault_bag_items non-null columns (expect 14)' AS what, COUNT(*) AS value FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_vault_bag_items' AND IS_NULLABLE = 'NO';
-SELECT 'v80 nms_vault_bag_items unsigned columns (expect 11)' AS what, COUNT(*) AS value FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_vault_bag_items' AND COLUMN_NAME IN ('character_id','page','slot','bag_slot','item_id','augment_one','augment_two','augment_three','augment_four','augment_five','augment_six') AND COLUMN_TYPE LIKE '%unsigned%';
-SELECT 'v80 nms_vault_bag_items numeric types (expect 13)' AS what, COUNT(*) AS value FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_vault_bag_items' AND ((COLUMN_NAME IN ('character_id','item_id','augment_one','augment_two','augment_three','augment_four','augment_five','augment_six') AND DATA_TYPE = 'int') OR (COLUMN_NAME IN ('page','attuned') AND DATA_TYPE = 'tinyint') OR (COLUMN_NAME IN ('slot','bag_slot','charges') AND DATA_TYPE = 'smallint'));
-SELECT 'v80 nms_vault_bag_items signed/default item-state columns (expect 8)' AS what, COUNT(*) AS value FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_vault_bag_items' AND ((COLUMN_NAME = 'charges' AND DATA_TYPE = 'smallint' AND COLUMN_TYPE NOT LIKE '%unsigned%' AND COLUMN_DEFAULT = '1') OR (COLUMN_NAME IN ('augment_one','augment_two','augment_three','augment_four','augment_five','augment_six') AND DATA_TYPE = 'int' AND COLUMN_DEFAULT = '0') OR (COLUMN_NAME = 'attuned' AND DATA_TYPE = 'tinyint' AND COLUMN_TYPE NOT LIKE '%unsigned%' AND COLUMN_DEFAULT = '0'));
-SELECT 'v80 nms_vault_bag_items timestamp (expect 1)' AS what, COUNT(*) AS value FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_vault_bag_items' AND COLUMN_NAME = 'updated_at' AND DATA_TYPE = 'timestamp' AND IS_NULLABLE = 'NO' AND COLUMN_DEFAULT LIKE 'current_timestamp%' AND EXTRA LIKE '%on update current_timestamp%';
-SELECT 'v80 nms_vault_bag_items primary key (expect character_id,page,slot,bag_slot)' AS what, GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX) AS value FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_vault_bag_items' AND INDEX_NAME = 'PRIMARY';
-SELECT 'v80 nms_vault_bag_items idx_bag (expect character_id,page,slot)' AS what, GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX) AS value FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_vault_bag_items' AND INDEX_NAME = 'idx_bag';
+-- ---- v94: vault per-instance item state -----------------------------------------------
+-- Without these six columns a vault round trip silently returned a different item than the
+-- one deposited (attunement, ornamentation and custom_data were dropped), and every vault
+-- SELECT/REPLACE references them - EnsureTables keeps the vault disabled until they exist.
+SELECT 'v94 vault instance columns (expect 6)' AS what, COUNT(*) AS value
+  FROM information_schema.columns
+  WHERE table_schema = DATABASE() AND table_name = 'character_nms_vault'
+    AND column_name IN ('instnodrop', 'custom_data', 'ornament_icon',
+                        'ornament_idfile', 'ornament_hero_model', 'guid');
 
-SELECT 'v80 nms_loot_rules table (expect 1)' AS what, COUNT(*) AS value FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_loot_rules' AND ENGINE = 'InnoDB' AND TABLE_COLLATION LIKE 'utf8mb4%';
-SELECT 'v80 nms_loot_rules exact columns (expect 4)' AS what, COUNT(*) AS value FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_loot_rules' AND COLUMN_NAME IN ('character_id','item_id','action','updated_at');
-SELECT 'v80 nms_loot_rules total columns (expect 4)' AS what, COUNT(*) AS value FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_loot_rules';
-SELECT 'v80 nms_loot_rules non-null columns (expect 4)' AS what, COUNT(*) AS value FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_loot_rules' AND IS_NULLABLE = 'NO';
-SELECT 'v80 nms_loot_rules unsigned state columns (expect 3)' AS what, COUNT(*) AS value FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_loot_rules' AND ((COLUMN_NAME IN ('character_id','item_id') AND DATA_TYPE = 'int') OR (COLUMN_NAME = 'action' AND DATA_TYPE = 'tinyint')) AND COLUMN_TYPE LIKE '%unsigned%' AND IS_NULLABLE = 'NO';
-SELECT 'v80 nms_loot_rules timestamp (expect 1)' AS what, COUNT(*) AS value FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_loot_rules' AND COLUMN_NAME = 'updated_at' AND DATA_TYPE = 'timestamp' AND IS_NULLABLE = 'NO' AND COLUMN_DEFAULT LIKE 'current_timestamp%' AND EXTRA LIKE '%on update current_timestamp%';
-SELECT 'v80 nms_loot_rules primary key (expect character_id,item_id)' AS what, GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX) AS value FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nms_loot_rules' AND INDEX_NAME = 'PRIMARY';
-SELECT 'v80 vault/loot foreign keys (expect 0)' AS what, COUNT(*) AS value FROM information_schema.REFERENTIAL_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME IN ('nms_vault','nms_vault_bag_items','nms_loot_rules');
+-- ---- v95: Nautilus Vault inventory key ----------------------------------------------------
+-- Identity is items.id 9011009. Runtime matching is id >= 9011009 AND id % 1000000 = 11009,
+-- so stock 11013 (Boots of Quickness) is never the vault key. norent must be nonzero (1):
+-- NoRent == 0 is deleted after a long camp.
+SELECT 'v95 vault item (expect 1)' AS what, COUNT(*) AS value
+  FROM items WHERE id = 9011009 AND Name = 'Nautilus Vault';
+SELECT 'v95 vault norent (expect 1)' AS what, norent AS value
+  FROM items WHERE id = 9011009;
+SELECT 'v95 vault nodrop (expect 0)' AS what, nodrop AS value
+  FROM items WHERE id = 9011009;
+SELECT 'v95 vault key contract (expect 1)' AS what, COUNT(*) AS value
+  FROM items WHERE id = 9011009 AND itemclass = 0 AND itemtype = 33 AND bagslots = 0
+    AND bagtype = 0 AND book = 0 AND slots = 0 AND nodrop = 0 AND norent = 1
+    AND notransfer = 1 AND fvnodrop = 1 AND attuneable = 0 AND loregroup = -1
+    AND clicktype = 1 AND clickeffect = 1 AND clickname = 'Open Nautilus Vault'
+    AND casttime = 0 AND maxcharges = -1;
 
-SELECT 'v80 NMSLoot ruleset-1 rows (expect 7)' AS what, COUNT(*) AS value FROM rule_values WHERE ruleset_id = 1 AND rule_name IN ('Custom:NMSLootIconOffset','Custom:NMSLootSellPercent','Custom:NMSLootTributePercent','Custom:NMSLootAutoSellUnder','Custom:NMSLootDiscardWorthless','Custom:NMSLootAutoSellMinLevel','Custom:NMSLootRememberDecisions');
-SELECT 'v80 NMSLoot ruleset-1 values (informational; operator overrides preserved)' AS what, GROUP_CONCAT(CONCAT(rule_name, '=', rule_value) ORDER BY rule_name SEPARATOR '; ') AS value FROM rule_values WHERE ruleset_id = 1 AND rule_name IN ('Custom:NMSLootIconOffset','Custom:NMSLootSellPercent','Custom:NMSLootTributePercent','Custom:NMSLootAutoSellUnder','Custom:NMSLootDiscardWorthless','Custom:NMSLootAutoSellMinLevel','Custom:NMSLootRememberDecisions');
-
--- ---- v81: on-demand Vault Speaker -------------------------------------------------------
-SELECT 'v81 Vault Speaker 151258 row (expect 1)' AS what, COUNT(*) AS value FROM npc_types WHERE id = 151258;
-SELECT 'v81 Vault Speaker attributes (expect 1)' AS what, COUNT(*) AS value FROM npc_types WHERE id = 151258 AND name = 'Vault_Speaker' AND level = 1 AND race = 127 AND class = 1 AND bodytype = 11 AND hp = 100 AND mana = 0 AND gender = 0 AND texture = 0 AND size = 0 AND runspeed = 0 AND npc_faction_id = 0 AND aggroradius = 0 AND assistradius = 0 AND findable = 0 AND trackable = 0 AND show_name = 0 AND untargetable = 1 AND flymode = -1 AND MR = 500 AND CR = 500 AND DR = 500 AND FR = 500 AND PR = 500 AND maxlevel = 1;
-SELECT 'v81 Vault Speaker spawnentry references (expect 0)' AS what, COUNT(*) AS value FROM spawnentry WHERE npcID = 151258;
-SELECT 'v81 Vault Speaker spawngroup references (expect 0)' AS what, COUNT(DISTINCT g.id) AS value FROM spawngroup g JOIN spawnentry e ON e.spawngroupID = g.id WHERE e.npcID = 151258;
-SELECT 'v81 Vault Speaker spawn2 references (expect 0)' AS what, COUNT(*) AS value FROM spawn2 s JOIN spawnentry e ON e.spawngroupID = s.spawngroupID WHERE e.npcID = 151258;
+-- ---- v96: NautilusVault rule on ----------------------------------------------------------
+SELECT 'v96 Custom:NautilusVault rule (expect 1)' AS what, COUNT(*) AS value
+  FROM rule_values WHERE rule_name = 'Custom:NautilusVault' AND rule_value IN ('true', '1');

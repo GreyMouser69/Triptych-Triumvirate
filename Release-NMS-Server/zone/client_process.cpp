@@ -43,6 +43,7 @@
 #include "event_codes.h"
 #include "guild_mgr.h"
 #include "map.h"
+#include "nms_vault.h"
 #include "petitions.h"
 #include "queryserv.h"
 #include "quest_parser_collection.h"
@@ -59,6 +60,8 @@ extern volatile bool is_zone_loaded;
 extern WorldServer worldserver;
 extern EntityList entity_list;
 
+void HousingClientProcess(Client *c); // delayed housing burst after zone settle (zone/nms_housing.cpp)
+
 bool Client::Process() {
 	bool ret = true;
 
@@ -71,6 +74,19 @@ bool Client::Process() {
 		if (!IsLD() && zoneinpacket_timer.Check()) {
 			SendAllPackets();
 		}
+
+		HousingClientProcess(this);
+
+		// Coalesced AA table flush: see Client::SendAlternateAdvancementTable.
+		if (m_aa_table_send_pending &&
+			(Timer::GetCurrentTime() - m_aa_table_last_send_ms) >= kAaTableCoalesceMs) {
+			m_aa_table_send_pending = false;
+			SendAlternateAdvancementTable();
+		}
+
+		ProcessFellowship();
+
+		ProcessAchievementRewards();
 
 		if (adventure_request_timer) {
 			if (adventure_request_timer->Check()) {
@@ -168,6 +184,10 @@ bool Client::Process() {
 
 		if (charm_update_timer.Check()) {
 			CalcItemScale();
+		}
+
+		if (RuleB(Custom, PowerSourceEnabled) && power_source_timer.Check()) {
+			CalcPowerSourceDrain();
 		}
 
 		if (TaskPeriodic_Timer.Check() && task_state)
@@ -764,6 +784,10 @@ bool Client::Process() {
 				ItemTimerCheck();
 			}
 
+			if (m_clear_wearchange_cache_timer.Check()) {
+				m_last_seen_wearchange.clear();
+			}
+
 			if (GetPet()) {
 				for(int i = 0; i < petids.size(); i++) {
 					auto pet = entity_list.GetMob(petids[i]);
@@ -1037,6 +1061,10 @@ void Client::OnDisconnect(bool hard_disconnect) {
 	}
 
 	RecordStats();
+	// Finish any ownership-gated achievement state updates while the client state
+	// still exists. Completions are durable; reward delivery remains recoverable
+	// from the ledger on the next login.
+	FlushAchievementInventoryUpdate();
 
 	Disconnect();
 }
@@ -1697,7 +1725,7 @@ void Client::OPMoveCoin(const EQApplicationPacket* app)
 		{
 			uint32 distance = 0;
 			NPC *banker = entity_list.GetClosestBanker(this, distance);
-			if(!banker || distance > USE_NPC_RANGE2)
+			if(!NmsVaultBankAccess(this) && (!banker || distance > USE_NPC_RANGE2))
 			{
 				auto message = fmt::format(
 					"Player tried to make use of a banker (coin move) but "
@@ -1731,7 +1759,7 @@ void Client::OPMoveCoin(const EQApplicationPacket* app)
 		{
 			uint32 distance = 0;
 			NPC *banker = entity_list.GetClosestBanker(this, distance);
-			if(!banker || distance > USE_NPC_RANGE2)
+			if(!NmsVaultBankAccess(this) && (!banker || distance > USE_NPC_RANGE2))
 			{
 				auto message = fmt::format(
 					"Player tried to make use of a banker (shared coin move) but banker [{}] is "
@@ -1789,7 +1817,7 @@ void Client::OPMoveCoin(const EQApplicationPacket* app)
 		{
 			uint32 distance = 0;
 			NPC *banker = entity_list.GetClosestBanker(this, distance);
-			if(!banker || distance > USE_NPC_RANGE2)
+			if(!NmsVaultBankAccess(this) && (!banker || distance > USE_NPC_RANGE2))
 			{
 				auto message = fmt::format(
 					"Player tried to make use of a banker(coin move) but "
@@ -1851,7 +1879,7 @@ void Client::OPMoveCoin(const EQApplicationPacket* app)
 		{
 			uint32 distance = 0;
 			NPC *banker = entity_list.GetClosestBanker(this, distance);
-			if(!banker || distance > USE_NPC_RANGE2)
+			if(!NmsVaultBankAccess(this) && (!banker || distance > USE_NPC_RANGE2))
 			{
 				auto message = fmt::format(
 					"Player tried to make use of a banker (shared coin move) but banker [{}] is "

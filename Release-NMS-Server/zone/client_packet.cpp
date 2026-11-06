@@ -19,6 +19,8 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 #include "../common/eqemu_logsys.h"
 #include "../common/opcodemgr.h"
 #include "../common/raid.h"
+#include "../common/data_bucket.h"
+#include "achievement_manager.h"
 
 #include <iomanip>
 #include <iostream>
@@ -64,6 +66,8 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 #include "gm_commands/door_manipulation.h"
 #include "gm_commands/object_manipulation.h"
 #include "client.h"
+#include "nms_vault.h"
+#include "nms_lon_session.h"
 #include "../common/repositories/account_repository.h"
 #include "../common/repositories/character_corpses_repository.h"
 #include "../common/repositories/guild_tributes_repository.h"
@@ -90,6 +94,94 @@ typedef void (Client::*ClientPacketProc)(const EQApplicationPacket *app);
 std::map<uint32, ClientPacketProc> ConnectingOpcodes;
 //Use a static array for connected, for speed
 ClientPacketProc ConnectedOpcodes[_maxEmuOpcode];
+
+struct LogOnlyOpcode {
+	EmuOpcode opcode;
+	const char *name;
+};
+
+// Recovered RoF2 messages (housing, mercenary, spirit shroud) that this server names but does
+// not implement. Registering a handler keeps the client's action in the zone log with its
+// opcode name instead of dropping it as unknown; it grants no behaviour.
+#define NMS_LOG_ONLY(op) { op, #op },
+static const LogOnlyOpcode k_log_only_rof2[] = {
+	NMS_LOG_ONLY(OP_RealEstateItemOperation)
+	NMS_LOG_ONLY(OP_RealEstateHouseSwap)
+	NMS_LOG_ONLY(OP_RealEstateEscrow)
+	NMS_LOG_ONLY(OP_RealEstateTextRequest)
+	NMS_LOG_ONLY(OP_RealEstateLoadLayout)
+	NMS_LOG_ONLY(OP_RealEstatePack)
+	NMS_LOG_ONLY(OP_RealEstateVotingOptOut)
+	NMS_LOG_ONLY(OP_RealEstateAction5Request)
+	NMS_LOG_ONLY(OP_RealEstatePlotSearchOpen)
+	NMS_LOG_ONLY(OP_RealEstateAccess)
+	NMS_LOG_ONLY(OP_RealEstateAccessEdit)
+	NMS_LOG_ONLY(OP_RealEstateItemDelta)
+	NMS_LOG_ONLY(OP_RealEstateWorldRemove)
+	NMS_LOG_ONLY(OP_RealEstatePlacementSource)
+	NMS_LOG_ONLY(OP_RealEstatePlacementEnd)
+	NMS_LOG_ONLY(OP_RealEstateOperationResult)
+	NMS_LOG_ONLY(OP_RealEstateCustomInteraction)
+	NMS_LOG_ONLY(OP_RealEstateExit)
+	NMS_LOG_ONLY(OP_RealEstateTrophyOpen)
+	NMS_LOG_ONLY(OP_RealEstateTrophyToggle)
+	NMS_LOG_ONLY(OP_RealEstateTrophy)
+	NMS_LOG_ONLY(OP_RealEstateTrophyList)
+	NMS_LOG_ONLY(OP_RealEstateTrophyTimer)
+	NMS_LOG_ONLY(OP_RealEstateTrophyClear)
+	NMS_LOG_ONLY(OP_RealEstateAnchorConfirm)
+	NMS_LOG_ONLY(OP_RealEstateOwnerItemPurge)
+	NMS_LOG_ONLY(OP_RealEstateOwnedItemList)
+	NMS_LOG_ONLY(OP_RealEstateArchivedList)
+	NMS_LOG_ONLY(OP_RealEstateSaleResult)
+	NMS_LOG_ONLY(OP_RealEstateTransferResult)
+	NMS_LOG_ONLY(OP_RealEstateTransferConsent)
+	NMS_LOG_ONLY(OP_RealEstateBindSpawn)
+	NMS_LOG_ONLY(OP_GuildTrophyAvailable)
+	NMS_LOG_ONLY(OP_GuildTrophyActive)
+	NMS_LOG_ONLY(OP_GuildTrophyToggle)
+	NMS_LOG_ONLY(OP_GuildTrophySave)
+	NMS_LOG_ONLY(OP_GuildTrophyModify)
+	NMS_LOG_ONLY(OP_GuildTrophyOptIn)
+	NMS_LOG_ONLY(OP_MercenaryAutoAssist)
+	NMS_LOG_ONLY(OP_MercenaryAssist)
+	NMS_LOG_ONLY(OP_MercenarySwitch)
+	NMS_LOG_ONLY(OP_MercenaryTransferRequest)
+	NMS_LOG_ONLY(OP_MercenaryTransferResponse)
+	NMS_LOG_ONLY(OP_MercenaryUnshroud)
+	NMS_LOG_ONLY(OP_MercenaryUnshroudResponse)
+	NMS_LOG_ONLY(OP_MercenaryDead)
+	NMS_LOG_ONLY(OP_MercenaryRestricted)
+	NMS_LOG_ONLY(OP_MercenaryRestoreReady)
+	NMS_LOG_ONLY(OP_MercenaryUpkeep)
+	NMS_LOG_ONLY(OP_MercenaryCostUpdate)
+	NMS_LOG_ONLY(OP_MercenaryCurrencyMessage)
+	NMS_LOG_ONLY(OP_MercenaryTimerUpdate)
+	NMS_LOG_ONLY(OP_SpiritShroudAbilityRequest)
+	NMS_LOG_ONLY(OP_SpiritShroudEquipmentRequest)
+	NMS_LOG_ONLY(OP_SpiritShroudComplete)
+	NMS_LOG_ONLY(OP_SpiritShroudBank)
+	NMS_LOG_ONLY(OP_SpiritShroudBankItems)
+	NMS_LOG_ONLY(OP_SpiritShroudBankEmpty)
+};
+#undef NMS_LOG_ONLY
+
+void Client::Handle_OP_Unimplemented(const EQApplicationPacket *app)
+{
+	if (!app) {
+		return;
+	}
+
+	const char *name = "OP_Unknown";
+	for (const auto &entry : k_log_only_rof2) {
+		if (entry.opcode == app->GetOpcode()) {
+			name = entry.name;
+			break;
+		}
+	}
+
+	LogInfo("[Opcodes] unimplemented {} from [{}]: {} byte(s)", name, GetName(), app->size);
+}
 
 void MapOpcodes()
 {
@@ -125,6 +217,11 @@ void MapOpcodes()
 	// connected opcode handler assignments:
 	ConnectedOpcodes[OP_0x0193] = &Client::Handle_0x0193;
 	ConnectedOpcodes[OP_AAAction] = &Client::Handle_OP_AAAction;
+	ConnectedOpcodes[OP_AchievementCompareRequest] = &Client::Handle_OP_AchievementCompareRequest;
+	ConnectedOpcodes[OP_AchievementLinkRequest] = &Client::Handle_OP_AchievementLinkRequest;
+	ConnectedOpcodes[OP_AchievementRequest] = &Client::Handle_OP_AchievementRequest;
+	ConnectedOpcodes[OP_AchievementReward] = &Client::Handle_OP_AchievementReward;
+	ConnectedOpcodes[OP_RewardSelection] = &Client::Handle_OP_RewardSelection;
 	ConnectedOpcodes[OP_AcceptNewTask] = &Client::Handle_OP_AcceptNewTask;
 	ConnectedOpcodes[OP_AdventureInfoRequest] = &Client::Handle_OP_AdventureInfoRequest;
 	ConnectedOpcodes[OP_AdventureLeaderboardRequest] = &Client::Handle_OP_AdventureLeaderboardRequest;
@@ -218,6 +315,8 @@ void MapOpcodes()
 	ConnectedOpcodes[OP_EvolveItem] = &Client::Handle_OP_EvolveItem;
 	ConnectedOpcodes[OP_FaceChange] = &Client::Handle_OP_FaceChange;
 	ConnectedOpcodes[OP_FeignDeath] = &Client::Handle_OP_FeignDeath;
+	ConnectedOpcodes[OP_FellowshipAction] = &Client::Handle_OP_FellowshipAction;
+	ConnectedOpcodes[OP_FellowshipCampRequest] = &Client::Handle_OP_FellowshipCampRequest;
 	ConnectedOpcodes[OP_FindPersonRequest] = &Client::Handle_OP_FindPersonRequest;
 	ConnectedOpcodes[OP_Fishing] = &Client::Handle_OP_Fishing;
 	ConnectedOpcodes[OP_FloatListThing] = &Client::Handle_OP_MovementHistoryList;
@@ -361,6 +460,27 @@ void MapOpcodes()
 	ConnectedOpcodes[OP_RaidDelegateAbility] = &Client::Handle_OP_RaidDelegateAbility;
 	ConnectedOpcodes[OP_RaidClearNPCMarks] = &Client::Handle_OP_RaidClearNPCMarks;
 	ConnectedOpcodes[OP_RandomReq] = &Client::Handle_OP_RandomReq;
+	ConnectedOpcodes[OP_RealEstateGo] = &Client::Handle_OP_RealEstateGo;
+	ConnectedOpcodes[OP_RealEstateItemQuery] = &Client::Handle_OP_RealEstateItemQuery;
+	ConnectedOpcodes[OP_RealEstateNeighborhood] = &Client::Handle_OP_RealEstateNeighborhood;
+	ConnectedOpcodes[OP_RealEstatePlacementBegin] = &Client::Handle_OP_RealEstatePlacementBegin;
+	ConnectedOpcodes[OP_RealEstatePlacementCommit] = &Client::Handle_OP_RealEstatePlacementCommit;
+	ConnectedOpcodes[OP_RealEstatePurchase] = &Client::Handle_OP_RealEstatePurchase;
+	ConnectedOpcodes[OP_RealEstateItemMenu] = &Client::Handle_OP_RealEstateItemMenu;
+	ConnectedOpcodes[OP_RealEstateItemInspect] = &Client::Handle_OP_RealEstateItemInspect;
+	ConnectedOpcodes[OP_RealEstateInspect] = &Client::Handle_OP_RealEstateInspect;
+	ConnectedOpcodes[OP_RealEstateSale] = &Client::Handle_OP_RealEstateSale;
+	ConnectedOpcodes[OP_RealEstateTransfer] = &Client::Handle_OP_RealEstateTransfer;
+	ConnectedOpcodes[OP_RealEstatePickup] = &Client::Handle_OP_RealEstatePickup;
+	ConnectedOpcodes[OP_RealEstateStoreAll] = &Client::Handle_OP_RealEstateStoreAll;
+
+	// Named but unimplemented: see k_log_only_rof2 above. Registered last, and only where no
+	// real handler claimed the opcode, so a log-only entry can never shadow an implementation.
+	for (const auto &entry : k_log_only_rof2) {
+		if (!ConnectedOpcodes[entry.opcode]) {
+			ConnectedOpcodes[entry.opcode] = &Client::Handle_OP_Unimplemented;
+		}
+	}
 	ConnectedOpcodes[OP_ReadBook] = &Client::Handle_OP_ReadBook;
 	ConnectedOpcodes[OP_RecipeAutoCombine] = &Client::Handle_OP_RecipeAutoCombine;
 	ConnectedOpcodes[OP_RecipeDetails] = &Client::Handle_OP_RecipeDetails;
@@ -674,6 +794,7 @@ void Client::CompleteConnect()
 	MarkPetListDirty();
 
 	SendAllPackets();
+
 	hpupdate_timer.Start();
 	autosave_timer.Start();
 	SetDuelTarget(0);
@@ -689,6 +810,7 @@ void Client::CompleteConnect()
 
 	// Task Packets
 	LoadClientTaskState();
+	LoadAchievements();
 
 	// moved to dbload and translators since we iterate there also .. keep m_pp values whatever they are when they get here
 	/*const auto sbs = EQ::spells::DynamicLookup(ClientVersion(), GetGM())->SpellbookSize;
@@ -845,6 +967,8 @@ void Client::CompleteConnect()
 		parse->EventZone(EVENT_ENTER_ZONE, zone, "", 0, &args);
 	}
 
+	NmsVaultOnZoneIn(this);
+
 	DeleteEntityVariable(SEE_BUFFS_FLAG);
 
 	sent_inventory = 0;
@@ -936,8 +1060,12 @@ void Client::CompleteConnect()
 	/* This needs to be set, this determines whether or not data was loaded properly before a save */
 	client_data_loaded = true;
 
+	SendAchievementPackets();
+
 	CalcItemScale();
 	DoItemEnterZone();
+	InitializePowerSourceCharge();
+	SendPowerSourceUpdate();
 
 	if (zone->GetZoneID() == Zones::GUILDHALL && GuildBanks)
 		GuildBanks->SendGuildBank(this);
@@ -1646,6 +1774,8 @@ void Client::Handle_Connect_OP_ZoneEntry(const EQApplicationPacket *app)
 		LogError("Error loading AA points for [{}]", GetName());
 	}
 
+	MigrateDuplicateAALines();
+
 	if (RuleB(Bots, Enabled)) {
 		LoadDefaultBotSettings();
 		database.botdb.LoadBotSettings(this);
@@ -2113,6 +2243,270 @@ void Client::Handle_OP_AAAction(const EQApplicationPacket *app)
 	}
 	else {
 		LogAA("Unknown AA action : [{}] [{}] [{}] [{}]", action->action, action->ability, action->target_id, action->exp_value);
+	}
+}
+
+void Client::Handle_OP_AchievementCompareRequest(const EQApplicationPacket *app)
+{
+	constexpr uint32 kCompareRequestRateLimitMs = 1000;
+	constexpr float kCompareDistanceSquared = 20.0f * 20.0f;
+	if (
+		ClientVersion() != EQ::versions::ClientVersion::RoF2 ||
+		app->size != sizeof(uint32) * 2
+	) {
+		return;
+	}
+
+	uint32 target_spawn_id = 0;
+	uint32 requester_spawn_id = 0;
+	std::memcpy(&target_spawn_id, app->pBuffer, sizeof(target_spawn_id));
+	std::memcpy(
+		&requester_spawn_id,
+		app->pBuffer + sizeof(target_spawn_id),
+		sizeof(requester_spawn_id)
+	);
+	if (
+		requester_spawn_id != GetID() ||
+		target_spawn_id > std::numeric_limits<uint16>::max()
+	) {
+		return;
+	}
+
+	auto target = entity_list.GetClientByID(static_cast<uint16>(target_spawn_id));
+	if (
+		!target ||
+		GetTarget() != target ||
+		DistanceSquared(GetPosition(), target->GetPosition()) >
+			kCompareDistanceSquared
+	) {
+		return;
+	}
+
+	if (
+		m_achievement_compare_request_rate_limit.Enabled() &&
+		!m_achievement_compare_request_rate_limit.Check(false)
+	) {
+		return;
+	}
+	m_achievement_compare_request_rate_limit.Start(kCompareRequestRateLimitMs);
+	target->SendAchievementCompareSnapshotTo(*this);
+}
+
+void Client::Handle_OP_AchievementLinkRequest(const EQApplicationPacket *app)
+{
+	constexpr size_t kMaximumPlayerNameLength = 63;
+	constexpr uint32 kLinkRequestRateLimitMs = 100;
+	if (
+		ClientVersion() != EQ::versions::ClientVersion::RoF2 ||
+		app->size < sizeof(uint32) + sizeof(int16) + 2
+	) {
+		return;
+	}
+
+	const auto name_terminator = static_cast<const uint8 *>(
+		std::memchr(app->pBuffer, '\0', app->size)
+	);
+	if (!name_terminator) {
+		return;
+	}
+	const auto player_name_length = static_cast<size_t>(
+		name_terminator - app->pBuffer
+	);
+	if (
+		player_name_length == 0 ||
+		player_name_length > kMaximumPlayerNameLength
+	) {
+		return;
+	}
+
+	const auto identity_offset = player_name_length + 1;
+	if (
+		identity_offset + sizeof(uint32) + sizeof(int16) > app->size
+	) {
+		return;
+	}
+
+	uint32 achievement_id = 0;
+	int16 status_value = 0;
+	std::memcpy(
+		&achievement_id,
+		app->pBuffer + identity_offset,
+		sizeof(achievement_id)
+	);
+	std::memcpy(
+		&status_value,
+		app->pBuffer + identity_offset + sizeof(achievement_id),
+		sizeof(status_value)
+	);
+	if (
+		status_value <
+			static_cast<int16>(EQ::Achievements::Status::Completed) ||
+		status_value >
+			static_cast<int16>(EQ::Achievements::Status::Hidden)
+	) {
+		return;
+	}
+
+	const auto definition =
+		AchievementManager::Instance().FindDefinition(achievement_id);
+	if (
+		!definition ||
+		app->size != EQ::Achievements::ComparisonPayloadSize(
+			player_name_length,
+			*definition,
+			static_cast<EQ::Achievements::Status>(status_value)
+		)
+	) {
+		return;
+	}
+
+	std::string player_name(
+		reinterpret_cast<const char *>(app->pBuffer),
+		player_name_length
+	);
+	auto linked_player = entity_list.GetClientByName(player_name.c_str());
+	if (!linked_player) {
+		return;
+	}
+	if (
+		m_achievement_link_request_rate_limit.Enabled() &&
+		!m_achievement_link_request_rate_limit.Check(false)
+	) {
+		return;
+	}
+	m_achievement_link_request_rate_limit.Start(kLinkRequestRateLimitMs);
+	linked_player->SendAchievementComparisonTo(*this, achievement_id);
+}
+
+void Client::Handle_OP_AchievementRequest(const EQApplicationPacket *app)
+{
+	constexpr uint8 kRoF2AchievementWindowRequest = 0x30;
+	constexpr uint32 kAchievementWindowRequestRateLimitMs = 1000;
+	if (ClientVersion() != EQ::versions::ClientVersion::RoF2) {
+		return;
+	}
+
+	if (
+		app->size != 0 &&
+		(app->size != sizeof(kRoF2AchievementWindowRequest) ||
+		 !app->pBuffer ||
+		 app->pBuffer[0] != kRoF2AchievementWindowRequest)
+	) {
+		return;
+	}
+
+	if (
+		m_achievement_window_request_rate_limit.Enabled() &&
+		!m_achievement_window_request_rate_limit.Check(false)
+	) {
+		return;
+	}
+	m_achievement_window_request_rate_limit.Start(kAchievementWindowRequestRateLimitMs);
+
+	SendAchievementPackets();
+
+	// RoF2 has a dedicated zero-payload window opcode. OP_AchievementState is
+	// comparison-only and enables the comparison pane even when its payload is
+	// empty.
+	auto open_window = new EQApplicationPacket(OP_AchievementWindow, 0);
+	FastQueuePacket(&open_window);
+}
+
+void Client::Handle_OP_AchievementReward(const EQApplicationPacket *app)
+{
+	HandleRewardSelectionPacket(
+		app,
+		RewardSelectionChannel::Claimable
+	);
+}
+
+void Client::Handle_OP_RewardSelection(const EQApplicationPacket *app)
+{
+	HandleRewardSelectionPacket(app, RewardSelectionChannel::Preview);
+}
+
+void Client::HandleRewardSelectionPacket(
+	const EQApplicationPacket *app,
+	RewardSelectionChannel channel
+)
+{
+	if (!app) {
+		return;
+	}
+
+	auto &selection = GetRewardSelection();
+	auto result = selection.HandlePacket(*app, channel);
+	switch (result.type) {
+	case RewardSelectionPacketResultType::ViewRequested:
+		if (result.requested_source == RewardSelectionSource::Achievement) {
+			SendAchievementRewardDisplay(result.requested_id);
+		}
+		else if (
+			result.requested_source == RewardSelectionSource::Task &&
+			task_state
+		) {
+			task_state->SendRewardSelection(this, result.requested_id);
+		}
+		return;
+	case RewardSelectionPacketResultType::PendingRequested:
+		if (const auto active = selection.ActiveSession(
+				RewardSelectionChannel::Claimable
+			)) {
+			const auto session = *active;
+			selection.Open(session);
+		}
+		if (task_state) {
+			task_state->RestorePendingRewardSelection(this);
+		}
+		RestorePendingAchievementRewardSelection();
+		if (
+			!selection.HasActiveSession(RewardSelectionChannel::Claimable)
+		) {
+			selection.Clear(RewardSelectionChannel::Claimable);
+		}
+		return;
+	case RewardSelectionPacketResultType::ClaimRequested:
+		break;
+	default:
+		return;
+	}
+
+	if (!result.claim) {
+		return;
+	}
+
+	auto delivery_result = RewardSelectionDeliveryResult::RetryableFailure;
+	switch (result.claim->session.source.source) {
+	case RewardSelectionSource::Achievement:
+		delivery_result = ClaimAchievementReward(
+			result.claim->session.pending_reward_id,
+			result.claim->session.reward_set.reward_set_id,
+			result.claim->selected_option_id
+		);
+		break;
+	case RewardSelectionSource::Task:
+		if (task_state) {
+			delivery_result = task_state->ClaimRewardSelection(
+				this,
+				*result.claim
+			);
+		}
+		break;
+	default:
+		break;
+	}
+
+	selection.CompleteClaim(*result.claim, delivery_result);
+	if (delivery_result == RewardSelectionDeliveryResult::Ambiguous) {
+		return;
+	}
+
+	if (task_state) {
+		task_state->RestorePendingRewardSelection(this);
+	}
+	RestorePendingAchievementRewardSelection();
+	if (!selection.HasActiveSession(RewardSelectionChannel::Claimable)) {
+		selection.Clear(RewardSelectionChannel::Claimable);
 	}
 }
 
@@ -3902,16 +4296,18 @@ void Client::Handle_OP_BankerChange(const EQApplicationPacket *app)
 		return;
 	}
 
-	uint32 distance = 0;
-	NPC *banker = entity_list.GetClosestBanker(this, distance);
+	if (!NmsVaultBankAccess(this)) {
+		uint32 distance = 0;
+		NPC *banker = entity_list.GetClosestBanker(this, distance);
 
-	if (!banker || distance > USE_NPC_RANGE2)
-	{
-		auto message = fmt::format(
-		    "Player tried to make use of a banker(money) but {} is non-existant or too far away ({} units).",
-		    banker ? banker->GetName() : "UNKNOWN NPC", distance);
-		RecordPlayerEventLog(PlayerEvent::POSSIBLE_HACK, PlayerEvent::PossibleHackEvent{.message = message});
-		return;
+		if (!banker || distance > USE_NPC_RANGE2)
+		{
+			auto message = fmt::format(
+			    "Player tried to make use of a banker(money) but {} is non-existant or too far away ({} units).",
+			    banker ? banker->GetName() : "UNKNOWN NPC", distance);
+			RecordPlayerEventLog(PlayerEvent::POSSIBLE_HACK, PlayerEvent::PossibleHackEvent{.message = message});
+			return;
+		}
 	}
 
 	auto outapp = new EQApplicationPacket(OP_BankerChange, nullptr, sizeof(BankerChange_Struct));
@@ -4750,6 +5146,11 @@ void Client::Handle_OP_CastSpell(const EQApplicationPacket *app)
 			if (inst && inst->IsClassCommon())
 			{
 				const EQ::ItemData* item = inst->GetItem();
+				if (NmsVaultTryOpenFromItem(this, item->ID)) {
+					InterruptSpell(castspell->spell_id);
+					SendSpellBarEnable(castspell->spell_id);
+					return;
+				}
 				if (item->Click.Effect != (uint32)castspell->spell_id)
 				{
 					std::string message = fmt::format("OP_CastSpell with item, tried to cast a different spell than what was on item - item spell id [{}] attempted [{}]", item->Click.Effect, (uint32)castspell->spell_id);
@@ -4997,6 +5398,9 @@ void Client::Handle_OP_ClickDoor(const EQApplicationPacket *app)
 		distance
 	);
 
+	// A lot marker is a door; the click is how the client asks about the plot.
+	HousingDoorClick(cd->doorid);
+
 	bool within_distance = distance < RuleI(Range, MaxDistanceToClickDoors);
 
 	// distance gate this because some doors are client controlled and the client
@@ -5189,6 +5593,14 @@ void Client::Handle_OP_CAuth(const EQApplicationPacket *app) {
 		if (CAuthorized) {
 			// Echo the packet back
 			QueuePacket(app);
+
+			// The Legends of Norrath card game logs in with a token only our
+			// dinput8 receives; CAuth is that DLL's once-per-zone-in report.
+			SendLoNSession();
+
+			// The client refuses every real-estate action until it is told this zone
+			// is a neighborhood; that is what OP_RealEstateZoneContext carries.
+			SendRealEstateIdentity();
 		}
 
 		if (!CHacker && buf->unk) {
@@ -5303,6 +5715,31 @@ void Client::Handle_OP_ClientUpdate(const EQApplicationPacket *app) {
 	// Pure boat updates, and client contolled mob updates are complete.
 	// This can still be tricky.  If ppu->vehicle_id is set, then the client
 	// position is actually an offset from the boat he is inside.
+
+	// NMS: anchored shroud forms (Cake Defense race 629) cannot move. Re-assert
+	// the server position so the rest of this handler still processes heading
+	// and animation and broadcasts the anchored spot to nearby clients.
+	static const uint32 NMS_ANCHORED_SHROUD_RACE = 629;
+	if (m_shrouded && race == NMS_ANCHORED_SHROUD_RACE) {
+		const float nms_drift_x = ppu->x_pos - GetX();
+		const float nms_drift_y = ppu->y_pos - GetY();
+
+		ppu->x_pos   = GetX();
+		ppu->y_pos   = GetY();
+		ppu->z_pos   = GetZ();
+		ppu->delta_x = 0;
+		ppu->delta_y = 0;
+		ppu->delta_z = 0;
+
+		// An SPA 99 root normally makes the client refuse to move, but the
+		// client is authoritative for its own position: if the buff is missing
+		// or ignored it keeps walking and only the server position is pinned.
+		// Push the anchored position back to the client itself (the same
+		// packet GMMove uses) whenever it has drifted from the anchor.
+		if ((nms_drift_x * nms_drift_x + nms_drift_y * nms_drift_y) > 4.0f) {
+			mMovementManager->SendCommandToClients(this, 0.0f, 0.0f, 0.0f, 0.0f, 0, ClientRangeAny);
+		}
+	}
 
 	bool	on_boat = (ppu->vehicle_id != 0);
 
@@ -5871,7 +6308,7 @@ void Client::Handle_OP_ControlBoat(const EQApplicationPacket *app)
 	Mob* boat = entity_list.GetMob(cbs->boatId);
 	if (!boat) {
 
-		LogError("Player tried to take control of non-existent boat (char_id: %u, boat_eid: %u)", CharacterID(), cbs->boatId);
+		LogError("Player tried to take control of non-existent boat (char_id: {}, boat_eid: {})", CharacterID(), cbs->boatId);
 		return;	// do nothing if the boat isn't valid
 	}
 
@@ -9929,6 +10366,19 @@ void Client::Handle_OP_ItemVerifyRequest(const EQApplicationPacket *app)
 		return;
 	}
 
+	if (NmsVaultTryOpenFromItem(this, item->ID)) {
+		if (item->Click.Effect > 0) {
+			SendSpellBarEnable(item->Click.Effect);
+		}
+		return;
+	}
+
+	// Legends of Norrath booster/deck pack (era-live global drop): credit the
+	// card product to the account and consume the pack.
+	if (NmsLoNTryOpenPack(this, item->ID, slot_id)) {
+		return;
+	}
+
 	spell_id = item->Click.Effect;
 	bool is_casting_bard_song = false;
 
@@ -10250,7 +10700,7 @@ void Client::Handle_OP_Jump(const EQApplicationPacket *app)
 
 void Client::Handle_OP_KeyRing(const EQApplicationPacket *app)
 {
-	KeyRingList();
+	KeyRingList(this);
 }
 
 void Client::Handle_OP_KickPlayers(const EQApplicationPacket *app)
@@ -11318,9 +11768,14 @@ void Client::Handle_OP_MoveItem(const EQApplicationPacket *app)
 		}
 	}
 
-	database.TransactionBegin();
+	if (!database.TransactionBeginStrict().Success()) {
+		SwapItemResync(mi);
+		return;
+	}
+	BeginAchievementInventoryTransaction();
 
-	if (!SwapItem(mi) && IsValidSlot(mi->from_slot) && IsValidSlot(mi->to_slot)) {
+	const bool moved = SwapItem(mi);
+	if (!moved && IsValidSlot(mi->from_slot) && IsValidSlot(mi->to_slot)) {
 		SwapItemResync(mi);
 
 		bool error = false;
@@ -11337,7 +11792,22 @@ void Client::Handle_OP_MoveItem(const EQApplicationPacket *app)
 		}
 	}
 
-	database.TransactionCommit();
+	const auto transaction_failed = database.TransactionStrictFailed();
+	bool inventory_committed = false;
+	if (!transaction_failed) {
+		inventory_committed = database.TransactionCommitStrict().Success();
+	}
+	else {
+		database.TransactionRollbackStrict();
+	}
+	EndAchievementInventoryTransaction(inventory_committed);
+	if (transaction_failed || !inventory_committed) {
+		LogError(
+			"Disconnecting [{}] after an unresolved inventory transaction",
+			GetCleanName()
+		);
+		Disconnect();
+	}
 
 	LogInventory("OP_MoveItem took [{}] ms", bench.elapsedMilliseconds());
 }
@@ -11357,7 +11827,12 @@ void Client::Handle_OP_MoveMultipleItems(const EQApplicationPacket *app)
 		}
 
 		const MultiMoveItem_Struct* multi_move = reinterpret_cast<const MultiMoveItem_Struct*>(app->pBuffer);
-		if (app->size != sizeof(MultiMoveItem_Struct) + sizeof(MultiMoveItemSub_Struct) * multi_move->count) {
+		if (
+			!multi_move->count ||
+			app->size !=
+				sizeof(MultiMoveItem_Struct) +
+				sizeof(MultiMoveItemSub_Struct) * multi_move->count
+		) {
 			LinkDead();
 			return; // Packet size does not match expected size
 		}
@@ -11378,6 +11853,13 @@ void Client::Handle_OP_MoveMultipleItems(const EQApplicationPacket *app)
 			}
 		}
 
+		if (!database.TransactionBeginStrict().Success()) {
+			Message(Chat::Red, "Unable to persist the multi-item move.");
+			return;
+		}
+		BeginAchievementInventoryTransaction();
+		bool operation_valid = true;
+
 		// This is a left click which is purely additive. This should always be cursor object or cursor bag contents into general\bank\whatever bag
 		if (left_click) {
 			for (int i = 0; i < multi_move->count; i++) {
@@ -11392,7 +11874,13 @@ void Client::Handle_OP_MoveMultipleItems(const EQApplicationPacket *app)
 				}
 
 				// This sends '1' as the stack count for unstackable items, which our titanium-era SwapItem blows up
-				if (m_inv.GetItem(mi->from_slot) && m_inv.GetItem(mi->from_slot)->IsStackable()) {
+				auto *source_item = m_inv.GetItem(mi->from_slot);
+				if (!source_item) {
+					operation_valid = false;
+					safe_delete(mi);
+					break;
+				}
+				if (source_item->IsStackable()) {
 					mi->number_in_stack = multi_move->moves[i].number_in_stack;
 				} else {
 					mi->number_in_stack = 0;
@@ -11407,6 +11895,10 @@ void Client::Handle_OP_MoveMultipleItems(const EQApplicationPacket *app)
 					}
 				}
 				safe_delete(mi);
+				if (database.TransactionStrictFailed()) {
+					operation_valid = false;
+					break;
+				}
 			}
 		// This is the swap.
 		// Client behavior is just to move stacks without combining them
@@ -11444,18 +11936,46 @@ void Client::Handle_OP_MoveMultipleItems(const EQApplicationPacket *app)
 
 				if (move.item) {
 					items.push_back(move);
-					database.SaveInventory(CharacterID(), NULL, from_slot); // We have to manually save inventory here.
+					if (!database.SaveInventory(CharacterID(), NULL, from_slot)) {
+						operation_valid = false;
+						break;
+					}
 				} else {
 					LinkDead();
-					return; // Prevent inventory desync here. Forcing a resync would be better, but we don't have a MoveItem struct to work with.
+					operation_valid = false;
+					break;
 				}
 			}
 
-			for (const MoveInfo& move : items) {
-				PutItemInInventory(move.to_slot, *move.item); // This saves inventory too
+			if (operation_valid) {
+				for (auto &move : items) {
+					if (!PutItemInInventory(move.to_slot, *move.item)) {
+						operation_valid = false;
+						break;
+					}
+				}
+			}
+			for (auto &move : items) {
+				safe_delete(move.item);
 			}
 		}
 
+		const auto transaction_failed = database.TransactionStrictFailed();
+		bool inventory_committed = false;
+		if (operation_valid && !transaction_failed) {
+			inventory_committed = database.TransactionCommitStrict().Success();
+		}
+		else {
+			database.TransactionRollbackStrict();
+		}
+		EndAchievementInventoryTransaction(operation_valid && inventory_committed);
+		if (!operation_valid || transaction_failed || !inventory_committed) {
+			LogError(
+				"Disconnecting [{}] after an unresolved multi-item inventory transaction",
+				GetCleanName()
+			);
+			Disconnect();
+		}
 	} else {
 		LinkDead(); // This packet should not be sent by an older client
 		return;
@@ -12170,6 +12690,14 @@ void Client::Handle_OP_QueryUCSServerStatus(const EQApplicationPacket *app)
 
 		QueuePacket(outapp);
 		safe_delete(outapp);
+	}
+	else {
+		// The client asked before this zone knew whether UCS was up, and answering with
+		// nothing is exactly what makes the client report "The universal chat service is
+		// temporarily unavailable". Ask world: its reply flips the zone's state, and that
+		// flip pushes OP_SetChatServer to every client in the zone (see the
+		// ServerOP_UCSServerStatusReply handler in zone/worldserver.cpp).
+		zone->RequestUCSServerStatus();
 	}
 }
 
@@ -13726,17 +14254,8 @@ void Client::Handle_OP_SetStartCity(const EQApplicationPacket *app)
 		return;
 	}
 
-	// S-09: /setstartcity must resolve the home city from the single concrete class this
-	// character was actually created as. Under multiclassing m_pp.class_ is the Bard
-	// sentinel and m_pp.classes is a union bitmask, so neither identifies the original
-	// creation class. Fail closed when the immutable creation class is unknown (0),
-	// which is the case for every legacy character. No derived value is substituted.
-	const uint32 creation_class = m_creation_class;
-	if (creation_class == 0 || !IsPlayerClass(creation_class)) {
-		Message(
-			Chat::Red,
-			"Your original creation class cannot be determined. Ask a GM to set your home city."
-		);
+	uint8 creation_class = m_creation_class;
+	if (creation_class == 0) {
 		return;
 	}
 
@@ -13947,7 +14466,7 @@ void Client::Handle_OP_ShopPlayerBuy(const EQApplicationPacket *app)
 		!tmp->IsNPC() ||
 		tmp->GetClass() != Class::Merchant ||
 		mp->quantity < 1 ||
-		DistanceSquared(m_Position, tmp->GetPosition()) > USE_NPC_RANGE2
+		(!NmsVaultIsMerchant(this, tmp->GetID()) && DistanceSquared(m_Position, tmp->GetPosition()) > USE_NPC_RANGE2)
 	) {
 		SendMerchantEnd();
 		return;
@@ -13955,6 +14474,7 @@ void Client::Handle_OP_ShopPlayerBuy(const EQApplicationPacket *app)
 	merchantid = tmp->CastToNPC()->MerchantType;
 
 	uint32 item_id = 0;
+	bool gate_blocked = false;
 	std::list<MerchantList> merlist = zone->merchanttable[merchantid];
 	std::list<MerchantList>::const_iterator itr;
 	for (itr = merlist.begin(); itr != merlist.end(); ++itr) {
@@ -13964,10 +14484,44 @@ void Client::Handle_OP_ShopPlayerBuy(const EQApplicationPacket *app)
 		}
 
 		if (mp->itemslot == ml.slot) {
+			// Enforce the same faction / data-bucket gates the merchant window
+			// applies in BulkSendMerchantInventory — the buy path is authoritative
+			// and must not accept slots the window never offered.
+			int32 fac = tmp->GetPrimaryFaction();
+			if (fac != 0 && GetModCharacterFactionLevel(fac) < ml.faction_required) {
+				gate_blocked = true;
+				break;
+			}
+
+			if (!ml.bucket_name.empty() && !ml.bucket_value.empty()) {
+				DataBucketKey k = GetScopedBucketKeys();
+				k.key = ml.bucket_name;
+
+				auto b = DataBucket::GetData(k);
+				if (b.value.empty() || !zone->CompareDataBucket(ml.bucket_comparison, ml.bucket_value, b.value)) {
+					gate_blocked = true;
+					break;
+				}
+			}
+
 			item_id = ml.item;
 			break;
 		}
 	}
+
+	if (gate_blocked) {
+		auto message = fmt::format(
+			"Vendor Cheat attempted to buy gated itemslot [{}] from merchant [{}] (npc_type [{}]) without meeting the faction/bucket requirement",
+			mp->itemslot,
+			tmp->GetCleanName(),
+			tmp->GetNPCTypeID()
+		);
+		RecordPlayerEventLog(PlayerEvent::POSSIBLE_HACK, PlayerEvent::PossibleHackEvent{.message = message});
+		Message(Chat::Red, "The vendor has nothing to show you in that spot.");
+		SendMerchantEnd();
+		return;
+	}
+
 	const EQ::ItemData* item = nullptr;
 	uint32 prevcharges = 0;
 	if (item_id == 0 && tmp) { //check to see if its on the temporary table
@@ -14194,7 +14748,7 @@ void Client::Handle_OP_ShopPlayerSell(const EQApplicationPacket *app)
 		return;
 
 	//you have to be somewhat close to them to be properly using them
-	if (DistanceSquared(m_Position, vendor->GetPosition()) > USE_NPC_RANGE2)
+	if (!NmsVaultIsMerchant(this, vendor->GetID()) && DistanceSquared(m_Position, vendor->GetPosition()) > USE_NPC_RANGE2)
 		return;
 
 	uint32 price = 0;
@@ -14445,7 +14999,7 @@ void Client::Handle_OP_ShopRequest(const EQApplicationPacket *app)
 	}
 
 	// you have to be somewhat close to them to be properly using them
-	if (DistanceSquared(m_Position, tmp->GetPosition()) > USE_NPC_RANGE2) {
+	if (!NmsVaultIsMerchant(this, tmp->GetID()) && DistanceSquared(m_Position, tmp->GetPosition()) > USE_NPC_RANGE2) {
 		return;
 	}
 
@@ -17538,7 +18092,7 @@ void Client::Handle_OP_Offline(const EQApplicationPacket *app)
 	EQStreamInterface *eqsi           = nullptr;
 	auto               offline_client = new Client(eqsi);
 
-	database.LoadCharacterData(CharacterID(), &offline_client->GetPP(), &offline_client->GetEPP(), &offline_client->m_creation_class);
+	database.LoadCharacterData(CharacterID(), &offline_client->GetPP(), &offline_client->GetEPP(), &m_creation_class);
 	offline_client->Clone(*this);
 	offline_client->GetInv().SetGMInventory(true);
 	offline_client->SetPosition(GetX(), GetY(), GetZ());

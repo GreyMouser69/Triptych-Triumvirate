@@ -23,6 +23,7 @@ GNU General Public License for more details.
 #include "waypoint_window.h"
 #include "nms_vault_window.h"
 #include "nms_loot_window.h"
+#include "vault_window.h"
 #include <map>
 #include <string>
 #include <algorithm>
@@ -214,6 +215,7 @@ void InitializeMQ2Windows()
     NmsLootWnd::Initialize();
     WaypointsWnd::Initialize();
     NmsVaultWnd::Initialize();
+    VaultWnd::Initialize();
 
     //extern PCHAR szItemSlot[];
 

@@ -142,7 +142,30 @@ void EQ::Net::DaybreakConnectionManager::Process()
 		}
 		else if (status == StatusConnected) {
 			auto time_since_last_recv = std::chrono::duration_cast<std::chrono::milliseconds>(now - connection->m_last_recv);
-			if ((size_t)time_since_last_recv.count() > m_options.stale_connection_ms) {
+			auto silent_ms = (size_t)time_since_last_recv.count();
+
+			// None of this used to be logged, and the manager has no connection-closed callback,
+			// so a peer that went quiet vanished with no trace anywhere while the server still
+			// believed it was connected. Warn once per silence episode, and log the drop.
+			if (!connection->m_stale_warned && silent_ms > m_options.stale_warn_ms) {
+				connection->m_stale_warned = true;
+				LogInfo(
+					"Connection [{}]:[{}] has sent nothing for [{}] ms; it will be dropped at [{}] ms",
+					connection->m_endpoint,
+					connection->m_port,
+					silent_ms,
+					m_options.stale_connection_ms
+				);
+			}
+
+			if (silent_ms > m_options.stale_connection_ms) {
+				LogInfo(
+					"Dropping stale connection [{}]:[{}] -- nothing received for [{}] ms (limit [{}] ms)",
+					connection->m_endpoint,
+					connection->m_port,
+					silent_ms,
+					m_options.stale_connection_ms
+				);
 				iter = m_connections.erase(iter);
 				connection->ChangeStatus(StatusDisconnecting);
 				continue;
@@ -425,6 +448,7 @@ void EQ::Net::DaybreakConnection::Process()
 void EQ::Net::DaybreakConnection::ProcessPacket(Packet &p)
 {
 	m_last_recv = Clock::now();
+	m_stale_warned = false;
 	m_stats.recv_packets++;
 	m_stats.recv_bytes += p.Length();
 
@@ -1137,6 +1161,17 @@ void EQ::Net::DaybreakConnection::ProcessResend(int stream)
 				m_owner->m_options.resend_timeout,
 				now_ms,
 				first_sent_ms
+			);
+
+			// LogNetClient does not reach the file log, so a connection closed here used to
+			// vanish without a trace. A reliable packet that goes unacknowledged is a real
+			// disconnect reason and belongs in the log.
+			LogInfo(
+				"Closing connection [{}]:[{}] -- reliable packet unacknowledged for [{}] ms (resend_timeout [{}] ms)",
+				m_endpoint,
+				m_port,
+				time_since_first_sent,
+				m_owner->m_options.resend_timeout
 			);
 			Close();
 			return;

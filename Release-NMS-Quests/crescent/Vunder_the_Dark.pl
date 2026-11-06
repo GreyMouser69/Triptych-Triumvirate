@@ -22,6 +22,19 @@ sub EVENT_SAY {
     quest::say("There is a scaleless barbarian that intends to train the drakkin. She has some items and ingredients on her that I need for my studies. You are going to have to [kill] her. There is no other way she will surrender the ingredients. She is in Artisan's Row on the second level of the city. You will need to be sure to kill her before the guards who patrol nearby catch you. They will not look upon a death within the city walls fondly. Then, take her bag of goods and return them to me.");
     quest::assigntask(600252); # A Dark Heart
   }
+  # Sowing Dissent (600579)
+  if ($text=~/sowing/i || $text=~/dissent/i) {
+    if (!quest::istaskactive(600579) && !quest::istaskcompleted(600579)) {
+      quest::say("A different kind of study now - [dissent]. The bixies of Stone Hive tend wasphers and gardeners like slaves. Thin their keepers and the hive will turn on itself. Ten wasphers, ten gardeners.");
+      quest::assigntask(600579);
+    }
+    elsif (quest::istaskactive(600579)) {
+      quest::say("Ten wasphers, ten gardeners. Sow the dissent, friend.");
+    }
+    else {
+      quest::say("The hive quarrels with itself now. Beautiful, is it not?");
+    }
+  }
 }
 
 sub EVENT_ITEM {
@@ -31,13 +44,16 @@ sub EVENT_ITEM {
     # Activity 2 is the final step; hand out the class-appropriate staff.
     if (quest::istaskactivityactive(600252, 2)) {
       quest::updatetaskactivity(600252, 2, 1);
-      my $class = $client->GetClass();
-      if ($class == 1 || $class == 2 || $class == 3 || $class == 4 || $class == 5
-        || $class == 6 || $class == 7 || $class == 15 || $class == 16) {
-        quest::summonitem(54724); # Great Staff of the Dark Apprentice (melee)
-      }
-      else {
-        quest::summonitem(53494); # Staff of the Dark Apprentice (casters)
+      my $class_bits = $client->GetClassesBitmask() || $client->GetClassBitmask();
+      # 54724 = Great Staff of the Dark Apprentice (melee)
+      # 53494 = Staff of the Dark Apprentice (casters)
+      my %melee_staff_classes = map { $_ => 1 } (1, 2, 3, 4, 5, 6, 7, 15, 16);
+      my %granted_staff;
+      for my $class_id (1 .. 16) {
+        next unless ($class_bits & (1 << ($class_id - 1)));
+        my $staff = $melee_staff_classes{$class_id} ? 54724 : 53494;
+        next if $granted_staff{$staff}++;
+        quest::summonitem($staff);
       }
     }
     return;

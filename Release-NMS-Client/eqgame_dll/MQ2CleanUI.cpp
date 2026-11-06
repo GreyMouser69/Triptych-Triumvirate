@@ -21,6 +21,7 @@ GNU General Public License for more details.
 //#define DEBUG_TRY 1
 #include "MQ2Main.h"
 #include "waypoint_window.h"
+#include "vault_window.h"
 #include "pet_window.h"
 #include "nms_vault_window.h"
 #include "nms_loot_window.h"
@@ -57,6 +58,7 @@ static void NMS_DestroyCustomWindows()
     WaypointsWnd::Shutdown();
     NmsVaultWnd::Shutdown();
     NmsLootWnd::Shutdown();
+    VaultWnd::Shutdown();
 
     if (PetWindow* pw = PetWindow::GetInstance()) {
         pw->ResetUI();

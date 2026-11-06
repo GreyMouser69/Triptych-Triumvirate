@@ -21,6 +21,7 @@ GNU General Public License for more details.
 
 #include "MQ2Main.h"
 #include "nms_vault_protocol.h"
+#include "vault_window.h"
 
 class CChatHook 
 { 
@@ -34,7 +35,15 @@ public:
 
         //CheckChatForEvent(szMsg);
 
-        BOOL Filtered=FALSE; 
+        BOOL Filtered=FALSE;
+
+        // NMS: Nautilus Vault protocol lines (VAULTDATA|...) are machine data for the
+        // client add-on - consume them here and never show them in chat.
+        if (szMsg && !strncmp(szMsg, "VAULTDATA|", 10)) {
+            VaultWnd::OnIncomingChat(szMsg);
+            gbInChat = FALSE;
+            return;
+        }
 
         // NMS: Suppress the echoed #autoskill say command to keep chat clean
         if (szMsg && strstr(szMsg, "You say, '") && strstr(szMsg, "#autoskill")) {

@@ -3,6 +3,8 @@ CMAKE_MINIMUM_REQUIRED(VERSION 3.12)
 SET(zone_sources
     aa.cpp
     aa_ability.cpp
+    achievement_manager.cpp
+    achievement_state_updates.cpp
     aggro.cpp
     aggromanager.cpp
     api_service.cpp
@@ -16,7 +18,10 @@ SET(zone_sources
     botspellsai.cpp
     cheat_manager.cpp
     client.cpp
+    client_achievements.cpp
     client_evolving_items.cpp
+    client_fellowship.cpp
+    client_fellowship_vitality.cpp
     client_bot.cpp
     client_mods.cpp
     client_packet.cpp
@@ -38,6 +43,10 @@ SET(zone_sources
     exp.cpp
     expedition_request.cpp
     fastmath.cpp
+    fellowship_campfire.cpp
+    fellowship_campsite_bonuses.cpp
+    fellowship_campsite_materials.cpp
+    fellowship_chat.cpp
     fearpath.cpp
     forage.cpp
     groups.cpp
@@ -87,6 +96,8 @@ SET(zone_sources
     quest_db.cpp
     quest_parser_collection.cpp
     raids.cpp
+    reward_selection.cpp
+    reward_selection_catalog.cpp
     raycast_mesh.cpp
     sidecar_api/sidecar_api.cpp
     sidecar_api/loot_simulator_controller.cpp
@@ -105,6 +116,9 @@ SET(zone_sources
     nms_waypoints.cpp
     nms_vault_locker.cpp
     nms_lootoffer.cpp
+    nms_vault.cpp
+    nms_lon_session.cpp
+    nms_housing.cpp
     tradeskills.cpp
     trading.cpp
     trap.cpp
@@ -282,6 +296,7 @@ set(lua_sources
 )
 
 add_library(lua_zone STATIC ${lua_sources})
+target_include_directories(lua_zone PRIVATE ${LUA_INCLUDE_DIR})
 IF (LUA_LIBRARY_ENABLED)
     target_include_directories(lua_zone PRIVATE ${LUA_LIBRARY_INCLUDE})
 ENDIF()
@@ -323,6 +338,7 @@ set(gm_command_sources
     command.cpp
     bot_command.cpp
     gm_commands/acceptrules.cpp
+    gm_commands/achievement.cpp
     gm_commands/advnpcspawn.cpp
     gm_commands/aggrozone.cpp
     gm_commands/ai.cpp
@@ -470,6 +486,7 @@ set(gm_command_sources
     gm_commands/unscribespells.cpp
     gm_commands/untraindisc.cpp
     gm_commands/untraindiscs.cpp
+    gm_commands/vault.cpp
     gm_commands/wc.cpp
     gm_commands/worldshutdown.cpp
     gm_commands/worldwide.cpp

@@ -76,6 +76,7 @@ public:
 	int GetBaseWIS();
 	int GetWeight();
 	uint32 GetEXP();
+	int GetFellowshipID(); // NMS: natal RoF2 fellowship id (0 = none)
 	float GetEXPModifier();
 	float GetEXPModifier(uint32 zone_id);
 	float GetEXPModifier(uint32 zone_id, int16 instance_version);
@@ -383,6 +384,37 @@ public:
 	bool IsTaskCompleted(int task_id);
 	bool IsTaskActive(int task);
 	bool IsTaskActivityActive(int task, int activity);
+	bool HasCompletedAchievement(uint32 achievement_id);
+	int GetAchievementStatus(uint32 achievement_id);
+	int64 GetAchievementProgress(
+		uint32 achievement_id,
+		uint32 component_type,
+		uint32 component_id
+	);
+	bool SetAchievementProgress(
+		uint32 achievement_id,
+		uint32 component_type,
+		uint32 component_id,
+		uint32 value
+	);
+	bool SetAchievementProgress(
+		uint32 achievement_id,
+		uint32 component_type,
+		uint32 component_id,
+		uint32 value,
+		bool additive
+	);
+	bool CompleteAchievement(uint32 achievement_id);
+	bool AdvanceSharedTaskAchievementProgress(
+		uint32 achievement_id,
+		uint32 component_type,
+		uint32 component_id,
+		uint32 value
+	);
+	bool CompleteSharedTaskAchievement(uint32 achievement_id);
+	std::string GetSharedTaskIdentity();
+	uint32 GetZoneInstanceVersion();
+	int GetTaskActivityDoneCount(int task_id, int activity_id);
 	void LockSharedTask(bool lock);
 	void EndSharedTask();
 	void EndSharedTask(bool send_fail);
@@ -399,7 +431,9 @@ public:
 	uint32 GetMoney(uint8 type, uint8 subtype);
 	void OpenLFGuildWindow();
 	void OpenShroudWindow(Lua_Mob npc);
+	void ApplyShroud(uint32 shroud_id);
 	void RemoveShroud();
+	void RemoveShroudSilent();
 	void NotifyNewTitlesAvailable();
 	void Signal(int signal_id);
 	void AddAlternateCurrencyValue(uint32 currency, int amount);
@@ -544,6 +578,7 @@ public:
 	bool KeyRingCheck(uint32 item_id);
 	bool KeyRingClear();
 	void KeyRingList();
+	void KeyRingList(Lua_Client c);
 	bool KeyRingRemove(uint32 item_id);
 	luabind::object GetKeyRing(lua_State* L);
 	bool CompleteTask(int task_id);
@@ -605,6 +640,7 @@ public:
 	void SetSecondaryWeaponOrnamentation(uint32 model_id);
 	void TaskSelector(luabind::adl::object table);
 	void TaskSelector(luabind::adl::object table, bool ignore_cooldown);
+	bool TaskSelectorFromNPC(Lua_NPC npc, luabind::adl::object table);
 
 	void SetClientMaxLevel(uint8 max_level);
 	uint8 GetClientMaxLevel();

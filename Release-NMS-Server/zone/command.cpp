@@ -86,6 +86,7 @@ int command_init(void)
 	if (
 		command_add("acceptrules", "[acceptrules] - Accept the EQEmu Agreement", AccountStatus::Player, command_acceptrules) ||
 		command_add("advnpcspawn", "[maketype|makegroup|addgroupentry|addgroupspawn][removegroupspawn|movespawn|editgroupbox|cleargroupbox]", AccountStatus::GMLeadAdmin, command_advnpcspawn) ||
+		command_add("achievement", "Manage achievement state for yourself or a targeted player", AccountStatus::GMLeadAdmin, command_achievement) ||
 		command_add("aggrozone", "[aggro] - Aggro every mob in the zone with X aggro. Default is 0. Not recommend if you're not invulnerable.", AccountStatus::GMAdmin, command_aggrozone) ||
 		command_add("alttoggle", "[alttoggle] - Toggle the effectiveness of a passive AA by AA ID.", AccountStatus::Player, command_alt_toggle) ||
 		command_add("ai", "[factionid/spellslist/con/guard/roambox/stop/start] - Modify AI on NPC target", AccountStatus::GMAdmin, command_ai) ||
@@ -169,6 +170,8 @@ int command_init(void)
 		command_add("lootsim", "[npc_type_id] [loottable_id] [iterations] - Runs benchmark simulations using real loot logic to report numbers and data", AccountStatus::GMImpossible, command_lootsim) ||
 		command_add("load_shared_memory", "[shared_memory_name] - Reloads shared memory and uses the input as output", AccountStatus::GMImpossible, command_load_shared_memory) ||
 		command_add("loc", "Print out your or your target's current location and heading", AccountStatus::Player, command_loc) ||
+		command_add("housing", "Inspect and manage player housing plots", AccountStatus::GMAdmin, command_housing) ||
+		command_add("leaverealestate", "Leave a house interior and return to the neighborhood", AccountStatus::Player, command_leaverealestate) ||
 		command_add("logs", "Manage anything to do with logs", AccountStatus::GMImpossible, command_logs) ||
 		command_add("makepet", "[Pet Name] - Make a pet", AccountStatus::Guide, command_makepet) ||
 		command_add("memspell", "[Spell ID] [Spell Gem] - Memorize a Spell by ID to the specified Spell Gem for you or your target", AccountStatus::Guide, command_memspell) ||
@@ -240,6 +243,13 @@ int command_init(void)
 		command_add("traindisc", "[level] - Trains all the disciplines usable by the target, up to level specified. (may freeze client for a few seconds)", AccountStatus::GMLeadAdmin, command_traindisc) ||
 		command_add("tim", "Toggle Improved Models", AccountStatus::Player, command_toggleimprovedmodels) ||
 		command_add("tune", "Calculate statistical values related to combat.", AccountStatus::GMAdmin, command_tune) ||
+		command_add("vault_page", "Open a Nautilus Vault page", AccountStatus::Player, command_vault_page) ||
+		command_add("vault_deposit", "Deposit the cursor item into a vault slot", AccountStatus::Player, command_vault_deposit) ||
+		command_add("vault_withdraw", "Withdraw an item from a vault slot", AccountStatus::Player, command_vault_withdraw) ||
+		command_add("vault_bank", "Open the bank from the Nautilus Vault", AccountStatus::Player, command_vault_bank) ||
+		command_add("vault_merchant", "Open a merchant from the Nautilus Vault", AccountStatus::Player, command_vault_merchant) ||
+		command_add("vault_deposit_bagitem_specific", "Deposit the cursor item into a vault bag slot", AccountStatus::Player, command_vault_deposit_bagitem_specific) ||
+		command_add("vault_withdraw_bagitem", "Withdraw an item from a vault bag slot", AccountStatus::Player, command_vault_withdraw_bagitem) ||
 		command_add("undye", "Remove dye from all of your or your target's armor slots", AccountStatus::GMAdmin, command_undye) ||
 		command_add("unmemspell", "[Spell ID] - Unmemorize a Spell by ID for you or your target", AccountStatus::Guide, command_unmemspell) ||
 		command_add("unmemspells", " Unmemorize all spells for you or your target", AccountStatus::Guide, command_unmemspells) ||

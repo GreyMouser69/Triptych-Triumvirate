@@ -10,6 +10,7 @@
 #include "zone.h"
 #include "string_ids.h"
 #include "../common/skill_caps.h"
+#include "../common/data_bucket.h"
 
 extern volatile bool is_zone_loaded;
 
@@ -20,6 +21,23 @@ extern volatile bool is_zone_loaded;
 #else
 	#define MercAI_DEBUG_Spells	-1
 #endif
+
+// Mercs should only spend mana on a buff when the target does not already have it
+// and no stronger buff of the same line is already on the target. CanBuffStack with
+// fail_if_overwrite = false returns a slot when the buff stacks or would replace a
+// weaker buff, and -1 when an existing buff is better.
+static bool MercBuffWouldImprove(Mob *target, uint16 spell_id, uint8 caster_level)
+{
+	if (!target) {
+		return false;
+	}
+
+	if (target->FindBuff(spell_id)) {
+		return false;
+	}
+
+	return target->CanBuffStack(spell_id, caster_level, false) >= 0;
+}
 
 Merc::Merc(const NPCType* d, float x, float y, float z, float heading)
 : NPC(d, nullptr, glm::vec4(x, y, z, heading), GravityBehavior::Water, false), endupkeep_timer(1000), rest_timer(1), confidence_timer(6000), check_target_timer(2000)
@@ -1415,7 +1433,11 @@ bool Merc::AI_EngagedCastCheck() {
 		case HEALER:
 			if(!entity_list.Merc_AICheckCloseBeneficialSpells(this, GetChanceToCastBySpellType(SpellType_Heal), MercAISpellRange, SpellType_Heal)) {
 				if(!entity_list.Merc_AICheckCloseBeneficialSpells(this, GetChanceToCastBySpellType(SpellType_Buff), MercAISpellRange, SpellType_Buff)) {
-					failedToCast = true;
+					// bot-brain (Master/Legendary): with nobody needing heals or buffs, interrupt
+					// whatever the target is casting instead of standing on our hands
+					if (!UseBotBrain() || !AICastSpell(GetChanceToCastBySpellType(SpellType_Debuff), SpellType_Debuff)) {
+						failedToCast = true;
+					}
 				}
 			}
 			break;
@@ -1430,8 +1452,12 @@ bool Merc::AI_EngagedCastCheck() {
 			break;
 		case CASTERDPS:
 			if (!AICastSpell(GetChanceToCastBySpellType(SpellType_Escape), SpellType_Escape)) {
-				if (!AICastSpell(GetChanceToCastBySpellType(SpellType_Nuke), SpellType_Nuke)) {
-					failedToCast = true;
+				// bot-brain (Master/Legendary): root the fleeing kill before it drags friends in,
+				// then fall through to the nuke ladder
+				if (!UseBotBrain() || !AICastSpell(GetChanceToCastBySpellType(SpellType_Root), SpellType_Root)) {
+					if (!AICastSpell(GetChanceToCastBySpellType(SpellType_Nuke), SpellType_Nuke)) {
+						failedToCast = true;
+					}
 				}
 			}
 			break;
@@ -1661,11 +1687,15 @@ bool Merc::AICastSpell(int8 iChance, uint32 iSpellTypes) {
 									if(g->members[i] && !g->members[i]->qglobal) {
 										int8 hpr = (int8)g->members[i]->GetHPRatio();
 
-										if(g->members[i]->HasPet() && g->members[i]->GetPet()->GetHPRatio() < checkHPR) {
+										if(g->members[i]->HasPet() && g->members[i]->GetPet()->GetHPRatio() > 0 && g->members[i]->GetPet()->GetHPRatio() < checkHPR) {
 											if(!tar || ((g->members[i]->GetPet()->GetHPRatio() + 25) < tar->GetHPRatio())) {
 												tar = g->members[i]->GetPet();
 												checkPetHPR = g->members[i]->GetPet()->GetHPRatio() + 25;
 											}
+										}
+
+										if (g->members[i]->GetHPRatio() <= 0) { // healer mercs rez the dead instead of trying to heal them
+											continue;
 										}
 
 										if(hpr > checkHPR) {
@@ -1755,6 +1785,20 @@ bool Merc::AICastSpell(int8 iChance, uint32 iSpellTypes) {
 								break;
 												 }
 							case SpellType_Root: {
+								// bot-brain (Master/Legendary): root the fleeing target so it can't
+								// drag its friends back in; stock brain never requests this type
+								if (!UseBotBrain() || mercClass != CASTERDPS)
+									break;
+
+								Mob* rootTar = GetTarget();
+								if (rootTar && rootTar->IsNPC() && rootTar->IsFleeing() && !rootTar->IsRooted()) {
+									selectedMercSpell = GetBestMercSpellForRoot(this, rootTar);
+
+									if(selectedMercSpell.spellid > 0) {
+										castedSpell = AIDoSpellCast(selectedMercSpell.spellid, rootTar, -1);
+									}
+								}
+
 								break;
 												 }
 							case SpellType_Buff: {
@@ -1777,7 +1821,7 @@ bool Merc::AICastSpell(int8 iChance, uint32 iSpellTypes) {
 
 									if(spells[selectedMercSpell.spellid].target_type == ST_Self) {
 										if( !IsImmuneToSpell(selectedMercSpell.spellid, this)
-											&& (CanBuffStack(selectedMercSpell.spellid, mercLevel, true) >= 0)) {
+											&& MercBuffWouldImprove(this, selectedMercSpell.spellid, mercLevel)) {
 
 												if( GetArchetype() == Archetype::Melee && IsEffectInSpell(selectedMercSpell.spellid, SE_IncreaseSpellHaste)) {
 													continue;
@@ -1804,7 +1848,7 @@ bool Merc::AICastSpell(int8 iChance, uint32 iSpellTypes) {
 												Mob* tar = g->members[i];
 
 												if( !tar->IsImmuneToSpell(selectedMercSpell.spellid, this)
-													&& (tar->CanBuffStack(selectedMercSpell.spellid, mercLevel, true) >= 0)) {
+													&& MercBuffWouldImprove(tar, selectedMercSpell.spellid, mercLevel)) {
 
 														if( tar->GetArchetype() == Archetype::Melee && IsEffectInSpell(selectedMercSpell.spellid, SE_IncreaseSpellHaste)) {
 															continue;
@@ -1835,7 +1879,7 @@ bool Merc::AICastSpell(int8 iChance, uint32 iSpellTypes) {
 													}
 
 													if(!tar->GetPet()->IsImmuneToSpell(selectedMercSpell.spellid, this)
-														&& (tar->GetPet()->CanBuffStack(selectedMercSpell.spellid, mercLevel, true) >= 0)) {
+														&& MercBuffWouldImprove(tar->GetPet(), selectedMercSpell.spellid, mercLevel)) {
 
 															uint32 TempDontBuffMeBeforeTime = tar->DontBuffMeBefore();
 
@@ -2001,6 +2045,24 @@ bool Merc::AICastSpell(int8 iChance, uint32 iSpellTypes) {
 								}
 								break;
 												 }
+							case SpellType_Debuff: {
+								// bot-brain (Master/Legendary): punish casters — healer mercs stun a
+								// casting enemy once nobody needs healing (dispatch order), caster
+								// mercs list debuff-rider nukes here if any are ever added
+								if (!UseBotBrain())
+									break;
+
+								Mob* debuffTar = GetTarget();
+								if (debuffTar && debuffTar->IsCasting()) {
+									selectedMercSpell = GetBestMercSpellForDebuff(this, debuffTar);
+
+									if(selectedMercSpell.spellid > 0) {
+										castedSpell = AIDoSpellCast(selectedMercSpell.spellid, debuffTar, -1);
+									}
+								}
+
+								break;
+												 }
 							case SpellType_Resurrect: {
 								Corpse *corpse = GetGroupMemberCorpse();
 
@@ -2016,6 +2078,10 @@ bool Merc::AICastSpell(int8 iChance, uint32 iSpellTypes) {
 
 									//CastSpell(selectedMercSpell.spellid, corpse->GetID(), 1, -1, -1, &TempDontRootMeBeforeTime);
 									corpse->SetDontRootMeBefore(TempDontRootMeBeforeTime);
+
+									if (castedSpell) {
+										corpse->SetMercRezOffered(true); // only offer a rez to a given corpse once
+									}
 								}
 
 								break;
@@ -2300,8 +2366,13 @@ int64 Merc::GetFocusEffect(focusType type, uint16 spell_id, bool from_buff_tic) 
 	return realTotal + realTotal2 + realTotal3;
 }
 
+// Master/Legendary mercs think like bots (Custom:MercBotBrain); every other
+// proficiency keeps the stock merc brain
+bool Merc::UseBotBrain() {
+	return RuleB(Custom, MercBotBrain) && GetProficiencyID() >= 3;
+}
+
 int8 Merc::GetChanceToCastBySpellType(uint32 spellType) {
-	int mercStance = (int)GetStance();
 	int8 mercClass = GetClass();
 	int8 chance = 0;
 
@@ -2347,20 +2418,9 @@ int8 Merc::GetChanceToCastBySpellType(uint32 spellType) {
 				break;
 								 }
 			case SpellType_Root: {
-				switch(mercClass)
-				{
-				case TANK: {
-					break;
-						   }
-				case HEALER:{
-					break;
-							}
-				case MELEEDPS:{
-					break;
-							  }
-				case CASTERDPS:{
-					break;
-							   }
+				// bot-brain only: the fleeing-target policy inside AICastSpell self-gates
+				if(UseBotBrain() && mercClass == CASTERDPS) {
+					chance = 100;
 				}
 				break;
 								 }
@@ -2420,6 +2480,13 @@ int8 Merc::GetChanceToCastBySpellType(uint32 spellType) {
 					chance = 100;
 					break;
 							   }
+				}
+				break;
+								   }
+			case SpellType_Debuff: {
+				// bot-brain only: the casting-target policy inside AICastSpell self-gates
+				if(UseBotBrain() && (mercClass == HEALER || mercClass == CASTERDPS)) {
+					chance = 100;
 				}
 				break;
 								   }
@@ -3176,6 +3243,78 @@ MercSpell Merc::GetBestMercSpellForStun(Merc* caster) {
 	return result;
 }
 
+// bot-brain (Master/Legendary): first root that can land on the target —
+// dispatched by the fleeing-target policy, so this never roots a held mob
+MercSpell Merc::GetBestMercSpellForRoot(Merc* caster, Mob* tar) {
+	MercSpell result;
+
+	result.spellid = 0;
+	result.stance = 0;
+	result.type = 0;
+	result.slot = 0;
+	result.proc_chance = 0;
+	result.time_cancast = 0;
+
+	if(!caster || !tar || !caster->AI_HasSpells())
+		return result;
+
+	std::list<MercSpell> rootSpellList = GetMercSpellsBySpellType(caster, SpellType_Root);
+
+	for (auto itr = rootSpellList.begin(); itr != rootSpellList.end(); ++itr) {
+		if(!CheckSpellRecastTimers(caster, itr->spellid))
+			continue;
+
+		if(tar->IsImmuneToSpell(itr->spellid, caster))
+			continue;
+
+		if(tar->CanBuffStack(itr->spellid, caster->GetLevel(), true) < 0)
+			continue;
+
+		result = *itr;
+		break;
+	}
+
+	return result;
+}
+
+// bot-brain (Master/Legendary): first debuff that can land on the target —
+// today that is the healer stun line; skips stun-immune or already-stunned
+// targets so we never burn mana into a wall
+MercSpell Merc::GetBestMercSpellForDebuff(Merc* caster, Mob* tar) {
+	MercSpell result;
+
+	result.spellid = 0;
+	result.stance = 0;
+	result.type = 0;
+	result.slot = 0;
+	result.proc_chance = 0;
+	result.time_cancast = 0;
+
+	if(!caster || !tar || !caster->AI_HasSpells())
+		return result;
+
+	std::list<MercSpell> debuffSpellList = GetMercSpellsBySpellType(caster, SpellType_Debuff);
+
+	for (auto itr = debuffSpellList.begin(); itr != debuffSpellList.end(); ++itr) {
+		if(!CheckSpellRecastTimers(caster, itr->spellid))
+			continue;
+
+		if(tar->IsImmuneToSpell(itr->spellid, caster))
+			continue;
+
+		if(tar->CanBuffStack(itr->spellid, caster->GetLevel(), true) < 0)
+			continue;
+
+		if(IsEffectInSpell(itr->spellid, SE_Stun) && (tar->IsStunned() || tar->GetSpecialAbility(SpecialAbility::StunImmunity)))
+			continue;
+
+		result = *itr;
+		break;
+	}
+
+	return result;
+}
+
 MercSpell Merc::GetBestMercSpellForAENuke(Merc* caster, Mob* tar) {
 	MercSpell result;
 	bool spellSelected = false;
@@ -3728,7 +3867,7 @@ Corpse* Merc::GetGroupMemberCorpse() {
 				if(g->members[i] && g->members[i]->IsClient()) {
 					corpse = entity_list.GetCorpseByOwnerWithinRange(g->members[i]->CastToClient(), this, RuleI(Mercs, ResurrectRadius));
 
-					if(corpse && !corpse->IsRezzed()) {
+					if(corpse && !corpse->IsRezzed() && !corpse->MercRezOffered()) {
 						return corpse;
 					}
 				}
@@ -4071,9 +4210,9 @@ Mob* Merc::GetOwnerOrSelf() {
 	return Result;
 }
 
-bool Merc::Death(Mob* killer_mob, int64 damage, uint16 spell, EQ::skills::SkillType attack_skill, uint8 killed_by, bool is_buff_tic)
+bool Merc::Death(Mob* killer_mob, int64 damage, uint16 spell_id, EQ::skills::SkillType attack_skill, KilledByTypes killed_by, bool is_buff_tic)
 {
-	if (!NPC::Death(killer_mob, damage, spell, attack_skill)) {
+	if (!NPC::Death(killer_mob, damage, spell_id, attack_skill, killed_by, is_buff_tic)) {
 		return false;
 	}
 
@@ -4860,6 +4999,23 @@ void Client::UpdateMercTimer()
 	}
 }
 
+// SoD mercenary tier cap (Custom:SoDMercTiers): 1 + completed SoD themes,
+// capped at 5 (OG=T2..Rathe=T5, the v89 design note). plugins/NMS_sod_utils.pl
+// writes the '<accountid>-sod-merc-tier' bucket on every SoD chain-flag
+// change and backfills on zone-in; a missing bucket = Tier 1.
+uint8 Client::GetSoDMercTierCap()
+{
+	uint8 cap = 1;
+	std::string value = DataBucket::GetData(std::to_string(AccountID()) + "-sod-merc-tier");
+	if (!value.empty()) {
+		int parsed = atoi(value.c_str());
+		if (parsed > 1) {
+			cap = parsed > 5 ? 5 : (uint8)parsed;
+		}
+	}
+	return cap;
+}
+
 bool Client::CheckCanHireMerc(Mob* merchant, uint32 template_id) {
 
 	if (!CheckCanSpawnMerc(template_id))
@@ -4893,6 +5049,21 @@ bool Client::CheckCanHireMerc(Mob* merchant, uint32 template_id) {
 		return false;
 	}
 
+	// SoD theme progression raises the mercenary tier cap
+	// (Custom:SoDMercTiers): Tier 1 for everyone, +1 per completed theme
+	// (OG=T2..Rathe=T5). The cap lives in the '<accountid>-sod-merc-tier'
+	// bucket that plugins/NMS_sod_utils.pl keeps current; a missing bucket
+	// means Tier 1. GMs bypass. Set the rule false for the old global tier
+	// behavior.
+	if (mercTemplate && RuleB(Custom, SoDMercTiers) && !GetGM()) {
+		uint8 tier_cap = GetSoDMercTierCap();
+		if (mercTemplate->TierID > tier_cap) {
+			Message(Chat::Red, "The Seeds of Destruction themes raise the mercenary tiers this liaison offers. You may hire up to Tier %i until you advance further.", tier_cap);
+			SendMercResponsePackets(2);
+			return false;
+		}
+	}
+
 	//check for sufficient funds and remove them last
 	if(RuleB(Mercs, ChargeMercPurchaseCost)) {
 		uint32 cost = Merc::CalcPurchaseCost(template_id, GetLevel()) * 100;  // Cost is in gold
@@ -4911,7 +5082,7 @@ bool Client::CheckCanRetainMerc(uint32 upkeep) {
 	Merc* merc = GetMerc();
 
 	//check for sufficient funds
-	if(RuleB(Mercs, ChargeMercPurchaseCost)) {
+	if(RuleB(Mercs, ChargeMercUpkeepCost)) {
 		if(merc) {
 			if(upkeep > 0 && !HasMoney(upkeep * 100)) {
 				SendMercResponsePackets(14);
@@ -4928,6 +5099,15 @@ bool Client::CheckCanSpawnMerc(uint32 template_id) {
 	// Check if mercs are enabled globally
 	if(!RuleB(Mercs, AllowMercs))
 	{
+		return false;
+	}
+
+	// Shrouded players may not use mercenaries (covers hire and unsuspend,
+	// which both route through this check)
+	if(IsShrouded())
+	{
+		SendMercResponsePackets(3);
+		Message(Chat::Red, "You may not use mercenaries while shrouded.");
 		return false;
 	}
 
@@ -5097,6 +5277,13 @@ void Client::SpawnMercOnZone() {
 
 	if(!RuleB(Mercs, AllowMercs))
 		return;
+
+	// Shrouded players may not summon mercenaries on zone-in
+	if(IsShrouded())
+	{
+		Log(Logs::General, Logs::Mercenaries, "SpawnMercOnZone skipped, shrouded: %s.", GetName());
+		return;
+	}
 
 	if (GetMerc())
 		return;

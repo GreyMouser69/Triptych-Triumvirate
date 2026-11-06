@@ -89,7 +89,9 @@ extern volatile bool RunLoops;
 #include "../common/zone_store.h"
 #include "../common/skill_caps.h"
 #include "client.h"
-
+#include "nms_vault.h"
+#include "client_achievements.h"
+#include "reward_selection.h"
 
 extern QueryServ* QServ;
 extern EntityList entity_list;
@@ -172,11 +174,12 @@ Client::Client() : Mob(
 	autosave_timer(RuleI(Character, AutosaveIntervalS) * 1000),
 	m_client_npc_aggro_scan_timer(RuleI(Aggro, ClientAggroCheckIdleInterval)),
 	m_client_bulk_npc_pos_update_timer(60 * 1000),
-	m_nms_sweep_timer(2000),
+		m_nms_sweep_timer(2000),
 	tribute_timer(Tribute_duration),
 	proximity_timer(ClientProximity_interval),
 	TaskPeriodic_Timer(RuleI(TaskSystem, PeriodicCheckTimer) * 1000),
 	charm_update_timer(6000),
+	power_source_timer(RuleI(Custom, PowerSourceTickMs)),
 	rest_timer(1),
 	pick_lock_timer(1000),
 	charm_class_attacks_timer(3000),
@@ -486,11 +489,12 @@ Client::Client(EQStreamInterface *ieqs) : Mob(
 	autosave_timer(RuleI(Character, AutosaveIntervalS) * 1000),
 	m_client_npc_aggro_scan_timer(RuleI(Aggro, ClientAggroCheckIdleInterval)),
 	m_client_bulk_npc_pos_update_timer(60 * 1000),
-	m_nms_sweep_timer(2000),
+		m_nms_sweep_timer(2000),
 	tribute_timer(Tribute_duration),
 	proximity_timer(ClientProximity_interval),
 	TaskPeriodic_Timer(RuleI(TaskSystem, PeriodicCheckTimer) * 1000),
 	charm_update_timer(6000),
+	power_source_timer(RuleI(Custom, PowerSourceTickMs)),
 	rest_timer(1),
 	pick_lock_timer(1000),
 	charm_class_attacks_timer(3000),
@@ -734,6 +738,11 @@ Client::~Client() {
 	entity_list.RemoveMobFromCloseLists(this);
 	m_close_mobs.clear();
 	ClearNMSVaultLocker();
+
+	// Despawn the vault merchant and drop this character's cached vault state. Logout and
+	// link-death reach here but not SendMerchantEnd, so without this an invisible merchant
+	// NPC stayed spawned for the life of the zone process.
+	NmsVaultOnClientDestroy(this);
 
 	if (ClientVersion() == EQ::versions::ClientVersion::RoF2 && RuleB (Parcel, EnableParcelMerchants)) {
 		DoParcelCancel();
@@ -981,6 +990,18 @@ void Client::ReportConnectingState() {
 
 bool Client::SaveAA()
 {
+	// A failed or in-flight fellowship XP transaction must never be masked by a
+	// later independent save; the commit outcome is authoritative.
+	if (m_fellowship_xp_persistence_failed || m_fellowship_xp_transaction_active)
+		return false;
+
+	// Live-like shroud mode: the in-memory map holds session-scoped shroud AA
+	// entries; never persist the shroud session into the real AA table (the
+	// real set is untouched in memory and restored with the real profile).
+	if (m_shrouded && (RuleI(Custom, ShroudLiveMode) & 4)) {
+		return true;
+	}
+
 	std::vector<CharacterAlternateAbilitiesRepository::CharacterAlternateAbilities> v;
 
 	uint32 aa_points_spent = 0;
@@ -1010,10 +1031,12 @@ bool Client::SaveAA()
 		}
 	}
 
-	m_pp.aapoints_spent = aa_points_spent + m_epp.expended_aa;
-
-	if (v.empty()) {
-		return true;
+	const bool aa_saved =
+		v.empty() ||
+		CharacterAlternateAbilitiesRepository::ReplaceMany(database, v);
+	if (aa_saved) {
+		m_pp.aapoints_spent = aa_points_spent + m_epp.expended_aa;
+		UpdateAchievementForAA(GetAchievementAAPointsSpent());
 	}
 
 	if (v.empty()) {
@@ -1035,8 +1058,19 @@ void Client::RemoveExpendedAA(int aa_id)
 	);
 }
 
-bool Client::Save(uint8 iCommitNow) {
+bool Client::Save(uint8 iCommitNow)
+{
+	return Save(iCommitNow, true);
+}
+
+bool Client::Save(uint8 iCommitNow, bool update_achievements) {
 	if(!ClientDataLoaded())
+		return false;
+
+	// Transactional fellowship vitality commits character XP itself; an
+	// independent save during that window (or after a failed one) would write a
+	// divergent progression state.
+	if (m_fellowship_xp_persistence_failed || m_fellowship_xp_transaction_active)
 		return false;
 
 	// Never persist a shroud form: write the real profile, but keep the live
@@ -1207,7 +1241,10 @@ bool Client::Save(uint8 iCommitNow) {
 		}
 	}
 
-	database.SaveCharacterData(this, &m_pp, &m_epp); /* Save Character Data */
+	const bool character_data_saved = database.SaveCharacterData(this, &m_pp, &m_epp); /* Save Character Data */
+	if (character_data_saved && update_achievements) {
+		UpdateAchievementForLevel(GetLevel());
+	}
 
 	database.SaveCharacterEXPModifier(this);
 
@@ -2312,6 +2349,10 @@ void Client::ChannelMessageReceived(uint8 chan_num, uint8 language, uint8 lang_s
 
 	switch(chan_num)
 	{
+	case ChatChannel_Fellowship: { /* RoF2 /fsay, channel 21 */
+		SendFellowshipChat(message);
+		break;
+	}
 	case ChatChannel_Guild: { /* Guild Chat */
 		if (!IsInAGuild()) {
 			MessageString(Chat::DefaultText, GUILD_NOT_MEMBER2);	//You are not a member of any guild.
@@ -3011,7 +3052,7 @@ void Client::SetSkill(EQ::skills::SkillType skillid, uint16 value) {
 		return;
 	m_pp.skills[skillid] = value; // We need to be able to #setskill 254 and 255 to reset skills
 
-	database.SaveCharacterSkill(CharacterID(), skillid, value);
+	const auto skill_saved = database.SaveCharacterSkill(CharacterID(), skillid, value);
 	auto outapp = new EQApplicationPacket(OP_SkillUpdate, sizeof(SkillUpdate_Struct));
 	SkillUpdate_Struct* skill = (SkillUpdate_Struct*)outapp->pBuffer;
 	skill->skillId=skillid;
@@ -3026,6 +3067,9 @@ void Client::SetSkill(EQ::skills::SkillType skillid, uint16 value) {
 
 	QueuePacket(outapp);
 	safe_delete(outapp);
+	if (skill_saved) {
+		UpdateAchievementForSkill(static_cast<uint32>(skillid), value);
+	}
 }
 
 void Client::IncreaseLanguageSkill(uint8 language_id, uint8 increase)
@@ -4612,6 +4656,11 @@ void Client::Disarm(Client* disarmer, int chance) {
 			slot_id = m_inv.FindFreeSlot(false, true, inst->GetItem()->Size, (inst->GetItem()->ItemType == EQ::item::ItemTypeArrow));
 			if (slot_id != EQ::invslot::SLOT_INVALID)
 			{
+				if (!database.TransactionBeginStrict().Success()) {
+					disarmer->MessageString(Chat::Skills, DISARM_FAILED);
+					return;
+				}
+				BeginAchievementInventoryTransaction();
 				EQ::ItemInstance *InvItem = m_inv.PopItem(slot);
 				if (InvItem) { // there should be no way it is not there, but check anyway
 					EQApplicationPacket* outapp = new EQApplicationPacket(OP_MoveItem, sizeof(MoveItem_Struct));
@@ -4623,11 +4672,41 @@ void Client::Disarm(Client* disarmer, int chance) {
 					else
 						mi->number_in_stack = 0;
 					FastQueuePacket(&outapp); // this deletes item from the weapon slot on the client
-					if (PutItemInInventory(slot_id, *InvItem, true))
+					const auto destination_saved =
+						PutItemInInventory(slot_id, *InvItem, true);
+					const auto source_saved =
+						destination_saved &&
 						database.SaveInventory(CharacterID(), NULL, slot);
+					bool inventory_committed = false;
+					if (
+						source_saved &&
+						!database.TransactionStrictFailed()
+					) {
+						inventory_committed =
+							database.TransactionCommitStrict().Success();
+					}
+					else {
+						database.TransactionRollbackStrict();
+					}
+					EndAchievementInventoryTransaction(inventory_committed);
+					safe_delete(InvItem);
+					if (!inventory_committed) {
+						LogError(
+							"Disconnecting [{}] after an unresolved disarm inventory transaction",
+							GetCleanName()
+						);
+						Disconnect();
+						return;
+					}
 					auto matslot = (slot == EQ::invslot::slotPrimary ? EQ::textures::weaponPrimary : EQ::textures::weaponSecondary);
 					if (matslot != EQ::textures::materialInvalid)
 						SendWearChange(matslot);
+				}
+				else {
+					database.TransactionRollbackStrict();
+					EndAchievementInventoryTransaction(false);
+					disarmer->MessageString(Chat::Skills, DISARM_FAILED);
+					return;
 				}
 				MessageString(Chat::Skills, DISARMED);
 				if (disarmer != this)
@@ -6102,6 +6181,7 @@ bool Client::KeyRingAdd(uint32 item_id)
 	}
 
 	keyring.emplace_back(item_id);
+	UpdateAchievementForOwnItem(item_id);
 
 	if (!RuleB(World, UseItemLinksForKeyRing)) {
 		Message(Chat::LightBlue, "Added to keyring.");
@@ -6129,18 +6209,34 @@ bool Client::KeyRingClear()
 {
 	keyring.clear();
 
-	return KeyringRepository::DeleteWhere(
+	const auto cleared = KeyringRepository::DeleteWhere(
 		database,
 		fmt::format(
 			"`char_id` = {}",
 			CharacterID()
 		)
 	);
+	if (cleared) {
+		UpdateAchievementForOwnItem(0);
+	}
+	return cleared;
 }
 
-void Client::KeyRingList()
+void Client::KeyRingList(Client* c)
 {
-	Message(Chat::LightBlue, "Keys on Keyring:");
+	if (!c) {
+		return;
+	}
+
+	std::string message = "Keys on Keyring:";
+	if (c != this) {
+		message = fmt::format(
+			"Keys on Keyring for {}:",
+			GetCleanName()
+		);
+	}
+
+	c->Message(Chat::LightBlue, message.c_str());
 
 	const EQ::ItemData *item = nullptr;
 
@@ -6153,7 +6249,7 @@ void Client::KeyRingList()
 				item->Name
 			);
 
-			Message(Chat::LightBlue, item_string.c_str());
+			c->Message(Chat::LightBlue, item_string.c_str());
 		}
 	}
 }
@@ -6245,7 +6341,7 @@ bool Client::KeyRingRemove(uint32 item_id)
 		)
 	);
 
-	return KeyringRepository::DeleteWhere(
+	const auto removed = KeyringRepository::DeleteWhere(
 		database,
 		fmt::format(
 			"`char_id` = {} AND `item_id` = {}",
@@ -6253,6 +6349,10 @@ bool Client::KeyRingRemove(uint32 item_id)
 			item_id
 		)
 	);
+	if (removed) {
+		UpdateAchievementForOwnItem(item_id);
+	}
+	return removed;
 }
 
 bool Client::IsNameChangeAllowed() {
@@ -7629,6 +7729,14 @@ void Client::SendRewards()
 	FastQueuePacket(&vetapp);
 }
 
+ClientRewardSelection &Client::GetRewardSelection()
+{
+	if (!m_reward_selection) {
+		m_reward_selection = std::make_unique<ClientRewardSelection>(*this);
+	}
+	return *m_reward_selection;
+}
+
 bool Client::TryReward(uint32 claim_id)
 {
 	// Make sure we have an open spot
@@ -7673,23 +7781,13 @@ bool Client::TryReward(uint32 claim_id)
 	if (iter == zone->VeteranRewards.end())
 		return false;
 
-	if (amt == 1) {
-		query = StringFormat("DELETE FROM account_rewards "
-					 "WHERE account_id = %i AND reward_id = %i",
-					 AccountID(), claim_id);
-		auto results = database.QueryDatabase(query);
-	} else {
-		query = StringFormat("UPDATE account_rewards SET amount = (amount-1) "
-					 "WHERE account_id = %i AND reward_id = %i",
-					 AccountID(), claim_id);
-		auto results = database.QueryDatabase(query);
-	}
-
+	// Build the reward and check lore BEFORE spending the claim. Stock spent
+	// it first, so claiming a lore item this character already owns used the claim up and gave
+	// nothing. Now a lore conflict refuses the claim and keeps it for another character.
 	auto &ivr = (*iter);
 	EQ::ItemInstance *claim = database.CreateItem(ivr.items[0].item_id, ivr.items[0].charges);
 	if (!claim) {
-		Save();
-		return true;
+		return false;
 	}
 
 	bool lore_conflict = CheckLoreConflict(claim->GetItem());
@@ -7708,8 +7806,23 @@ bool Client::TryReward(uint32 claim_id)
 		}
 
 	if (lore_conflict) {
+		if (CheckLoreConflict(claim->GetItem())) {
+			DuplicateLoreMessage(ivr.items[0].item_id);
+		}
 		safe_delete(claim);
-		return true;
+		return false;
+	}
+
+	if (amt == 1) {
+		query = StringFormat("DELETE FROM account_rewards "
+					 "WHERE account_id = %i AND reward_id = %i",
+					 AccountID(), claim_id);
+		auto results = database.QueryDatabase(query);
+	} else {
+		query = StringFormat("UPDATE account_rewards SET amount = (amount-1) "
+					 "WHERE account_id = %i AND reward_id = %i",
+					 AccountID(), claim_id);
+		auto results = database.QueryDatabase(query);
 	}
 
 	PutItemInInventory(free_slot, *claim);
@@ -8938,10 +9051,10 @@ void Client::SendAltCurrencies() {
 	}
 }
 
-void Client::SetAlternateCurrencyValue(uint32 currency_id, uint32 new_amount)
+bool Client::SetAlternateCurrencyValue(uint32 currency_id, uint32 new_amount)
 {
 	if (!zone->DoesAlternateCurrencyExist(currency_id)) {
-		return;
+		return false;
 	}
 
 	const uint32 current_amount = alternate_currency[currency_id];
@@ -8951,14 +9064,15 @@ void Client::SetAlternateCurrencyValue(uint32 currency_id, uint32 new_amount)
 	const uint32 change_amount = is_gain ? (new_amount - current_amount) : (current_amount - new_amount);
 
 	if (!change_amount) {
-		return;
+		return true;
 	}
 
 	alternate_currency[currency_id] = new_amount;
+	bool persistence_succeeded = true;
 	if (RuleB(Custom, EnableAccountAltCurrency)) {
-		database.UpdateAccountAltCurrencyValue(AccountID(), currency_id, new_amount);
+		persistence_succeeded = database.UpdateAccountAltCurrencyValue(AccountID(), currency_id, new_amount);
 	} else {
-		database.UpdateAltCurrencyValue(CharacterID(), currency_id, new_amount);
+		persistence_succeeded = database.UpdateAltCurrencyValue(CharacterID(), currency_id, new_amount);
 	}
 	SendAlternateCurrencyValue(currency_id);
 
@@ -8973,6 +9087,8 @@ void Client::SetAlternateCurrencyValue(uint32 currency_id, uint32 new_amount)
 
 		parse->EventPlayer(event_id, this, export_string, 0);
 	}
+
+	return persistence_succeeded;
 }
 
 bool Client::RemoveAlternateCurrencyValue(uint32 currency_id, uint32 amount)
@@ -8993,6 +9109,19 @@ bool Client::RemoveAlternateCurrencyValue(uint32 currency_id, uint32 amount)
 
 int Client::AddAlternateCurrencyValue(uint32 currency_id, int amount, bool is_scripted)
 {
+	return AddAlternateCurrencyValue(currency_id, amount, is_scripted, nullptr);
+}
+
+int Client::AddAlternateCurrencyValue(
+	uint32 currency_id,
+	int amount,
+	bool is_scripted,
+	bool *persistence_succeeded
+)
+{
+	if (persistence_succeeded) {
+		*persistence_succeeded = false;
+	}
 	if (!zone->DoesAlternateCurrencyExist(currency_id)) {
 		return 0;
 	}
@@ -9012,7 +9141,12 @@ int Client::AddAlternateCurrencyValue(uint32 currency_id, int amount, bool is_sc
 		new_value = 0;
 	}
 
-	SetAlternateCurrencyValue(currency_id, static_cast<uint32>(new_value));
+	// Propagate the real persistence outcome: the reward-claim path proves
+	// delivery with this flag, so a dropped write must not read as success.
+	const bool persisted = SetAlternateCurrencyValue(currency_id, static_cast<uint32>(new_value));
+	if (persistence_succeeded) {
+		*persistence_succeeded = persisted;
+	}
 	return new_value;
 }
 
@@ -12367,7 +12501,7 @@ void Client::Fling(float value, float target_x, float target_y, float target_z, 
 
 std::vector<int> Client::GetLearnableDisciplines(uint8 min_level, uint8 max_level) {
 	std::vector<int> learnable_disciplines;
-	for (uint16 spell_id = 0; spell_id < SPDAT_RECORDS; ++spell_id) {
+	for (uint32 spell_id = 0; spell_id < SPDAT_RECORDS; ++spell_id) {
 		bool learnable = true;
 		if (!IsValidSpell(spell_id)) {
 			continue;
@@ -12448,7 +12582,7 @@ std::vector<int> Client::GetScribeableSpells(uint8 min_level, uint8 max_level) {
 	std::vector<int> scribeable_spells;
 	std::unordered_map<uint32, std::vector<uint16>> spell_group_cache = LoadSpellGroupCache(min_level, max_level);
 
-	for (uint16 spell_id = 0; spell_id < SPDAT_RECORDS; ++spell_id) {
+	for (uint32 spell_id = 0; spell_id < SPDAT_RECORDS; ++spell_id) {
 		bool scribeable = true;
 		if (!IsValidSpell(spell_id)) {
 			continue;
@@ -14754,6 +14888,8 @@ bool Client::RemoveExtraClass(int class_id) {
 
 	RefundUnusuableAA();
 
+	MigrateDuplicateAALines();
+
     SendClearPlayerAA();
     SendAlternateAdvancementTable();
     SendAlternateAdvancementPoints();
@@ -15274,6 +15410,7 @@ std::string Client::GetBandolierItemName(uint8 bandolier_slot, uint8 slot_id)
 
 void Client::SendMerchantEnd()
 {
+	NmsVaultOnMerchantEnd(this);
 	SetMerchantSessionEntityID(0);
 
 	if (ClientVersion() == EQ::versions::ClientVersion::RoF2 && RuleB(Parcel, EnableParcelMerchants)) {

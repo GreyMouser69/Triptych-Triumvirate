@@ -112,6 +112,7 @@
 #define ServerOP_GuildURL                         0x007D
 #define ServerOP_GuildSendGuildList				  0x007E
 #define ServerOP_GuildMembersList                 0x007F
+#define ServerOP_GuildAchievement                 0x0080
 
 #define ServerOP_ParcelDelivery                   0x0090
 #define ServerOP_ParcelPrune                      0x0091
@@ -263,6 +264,8 @@
 #define ServerOP_CZSpell 0x4507
 #define ServerOP_CZTaskUpdate 0x4508
 #define ServerOP_CZClientMessageString 0x4509
+#define ServerOP_CZAchievementStateUpdateRequest 0x450A
+#define ServerOP_CZAchievementStateUpdateWake 0x450B
 
 #define ServerOP_WWDialogueWindow 0x4750
 #define ServerOP_WWLDoNUpdate 0x4751
@@ -277,6 +280,11 @@
 // NMS: Fabled season (see Release-NMS-Deploy/FABLED-ENCOUNTERS.md)
 #define ServerOP_FabledSeason        0x4790 // world -> zone: ServerFabledSeason_Struct (authoritative state)
 #define ServerOP_FabledSeasonUpdate  0x4791 // zone -> world: ServerFabledSeasonUpdate_Struct (request or row-changed)
+
+// NMS: RoF2 fellowship (see Release-NMS-Server/docs/rof2-fellowship.md)
+#define ServerOP_FellowshipRefresh     0x5125 // zone -> world -> zone: zero payload invalidation
+#define ServerOP_FellowshipChat        0x5126 // zone -> world: FellowshipChatRequest
+#define ServerOP_FellowshipChatDeliver 0x5127 // world -> zone: FellowshipChatDelivery
 
 // player events
 #define ServerOP_QSSendQuery 0x5000
@@ -1067,6 +1075,15 @@ struct ServerGuildMemberUpdate_Struct {
 	uint32 last_seen;
 };
 
+struct ServerGuildAchievement_Struct {
+	uint32 guild_id;
+	uint32 achievement_id;
+	char   player_name[64];
+	char   achievement_link_data[0];
+};
+
+inline constexpr uint32 ServerGuildAchievementMaxLinkDataLength = 4096;
+
 struct ServerGuildPermissionUpdate_Struct {
 	uint32 guild_id;
 	char   member_name[64];
@@ -1853,7 +1870,21 @@ struct BazaarPurchaseMessaging_Struct {
 	uint32           transaction_status;
 	bool             offline_purchase;
 };
+// Fellowship world <-> zone messages. Client input supplies text only; the
+// originating zone supplies actor_id and world derives every recipient field
+// from freshly loaded membership, never from packet bytes.
+struct FellowshipChatRequest {
+	uint32 actor_id;
+	char   message[1024];
+};
 
+struct FellowshipChatDelivery {
+	uint32 actor_id;
+	uint32 recipient_id;
+	uint32 fellowship_id;
+	char   sender[64];
+	char   message[1024];
+};
 
 #pragma pack()
 

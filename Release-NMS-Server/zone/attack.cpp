@@ -23,6 +23,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 #include "../common/spdat.h"
 #include "../common/strings.h"
 #include "../common/data_verification.h"
+#include "../common/achievements.h"
 #include "../common/misc_functions.h"
 #include "../common/events/player_event_logs.h"
 #include "../common/repositories/account_kill_counts_repository.h"
@@ -38,6 +39,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 #include "fastmath.h"
 #include "mob.h"
 #include "npc.h"
+#include "nms_vault.h"
 
 #include "bot.h"
 
@@ -1241,6 +1243,12 @@ int64 Mob::GetWeaponDamage(Mob *against, const EQ::ItemInstance *weapon_item, in
 	if (!against || against->GetInvul() || against->GetSpecialAbility(SpecialAbility::MeleeImmunity))
 		return 0;
 
+	// NMS: shrouded forms use the form's own hands, so drop the real item here
+	// too (kick/bash and any other caller). No inventory change is made.
+	if (IsClient() && CastToClient()->IsShrouded()) {
+		weapon_item = nullptr;
+	}
+
 	// check for items being illegally attained
 	if (weapon_item) {
 		if (!weapon_item->GetItem()) {
@@ -1275,11 +1283,13 @@ int64 Mob::GetWeaponDamage(Mob *against, const EQ::ItemInstance *weapon_item, in
 			}
 		}
 		else {
-			bool MagicGloves = false;
+			// NMS: shrouded form hands are magical (the Glowing Gloves effect),
+			// so a shrouded character can strike magic-immune targets unarmed.
+			bool MagicGloves = IsClient() && CastToClient()->IsShrouded();
 			if (IsClient()) {
 				const EQ::ItemInstance *gloves = CastToClient()->GetInv().GetItem(EQ::invslot::slotHands);
 				if (gloves)
-					MagicGloves = gloves->GetItemMagical(true);
+					MagicGloves = MagicGloves || gloves->GetItemMagical(true);
 			}
 
 			if (HasClass(Class::Monk) || HasClass(Class::Beastlord)) {
@@ -1683,6 +1693,16 @@ bool Mob::Attack(Mob* other, int Hand, bool bRiposte, bool IsStrikethrough, bool
 	else {
 		weapon = (IsClient()) ? GetInv().GetItem(EQ::invslot::slotPrimary) : CastToBot()->GetBotItem(EQ::invslot::slotPrimary);
 		OffHandAtk(false);
+	}
+
+	// NMS: a shrouded form attacks with its own hands/skills, never the
+	// character's real weapons (hidden, and usually unusable at the form's
+	// level/class). We do this as a virtual "magic hands" swap rather than by
+	// moving items into the slots: shroud state persists across camp/zone, so a
+	// real slot swap would be saved and could destroy the player's gear. This
+	// also keeps AttackAnimation on Hand-to-Hand for the form.
+	if (IsClient() && CastToClient()->IsShrouded()) {
+		weapon = nullptr;
 	}
 	if (weapon != nullptr) {
 		if (!weapon->IsWeapon()) {
@@ -2606,6 +2626,9 @@ void NPC::Damage(Mob* other, int64 damage, uint16 spell_id, EQ::skills::SkillTyp
 
 bool NPC::Death(Mob* killer_mob, int64 damage, uint16 spell, EQ::skills::SkillType attack_skill, KilledByTypes killed_by, bool is_buff_tic)
 {
+	const auto achievement_npc_name_identity =
+		EQ::Achievements::NpcNameIdentityHash(GetOrigName());
+
 	LogCombat(
 		"Fatal blow dealt by [{}] with [{}] damage, spell [{}], skill [{}]",
 		(killer_mob ? killer_mob->GetName() : "[nullptr]"),
@@ -2954,15 +2977,8 @@ bool NPC::Death(Mob* killer_mob, int64 damage, uint16 spell, EQ::skills::SkillTy
 
 		entity_list.RemoveFromAutoXTargets(this);
 
-		// NMS personal loot (phase B4a): the two death-time upgrade passes below
-		// used to compute their triggers inline, between the passes. Hoisting the
-		// computation above pass 1 is safe because BuildDeathLootUpgradeContext()
-		// is a pure read -- it consumes no RNG, so the random stream is unchanged.
-		// Both pass bodies, their iteration, their messages and their RNG draws are
-		// UNCHANGED below.
-		const DeathLootUpgradeContext death_upgrade_ctx = BuildDeathLootUpgradeContext(killer);
 
-		if (death_upgrade_ctx.loot_buff_enabled) {
+		if (database.LootBuffEnabled()) {
 			for (LootItem* item : m_loot_items) {
 				if (item != nullptr) {
 					auto old_id = item->item_id;
@@ -3006,9 +3022,36 @@ bool NPC::Death(Mob* killer_mob, int64 damage, uint16 spell, EQ::skills::SkillTy
 
 		// Seasonal Stuff
 		// Find if anyone who is destined to get loot rights is Seasonal or HC
-		// (computed above, in death_upgrade_ctx)
 
-		if (killer && killer->IsClient() && (death_upgrade_ctx.seasonal_or_hardcore())) {
+		bool seasonal_killer = false;
+		bool hardcore_killer = false;
+		if (killer && killer->IsClient()) {
+			seasonal_killer = seasonal_killer || killer->CastToClient()->IsSeasonal();
+			hardcore_killer = hardcore_killer || killer->CastToClient()->IsHardcore();
+			if (killer->IsGrouped()) {
+				Group* g = entity_list.GetGroupByClient(killer->CastToClient());
+				if (g) {
+					for (const auto &m : g->members) {
+						if (m) {
+							seasonal_killer = seasonal_killer || m->CastToClient()->IsSeasonal();
+							hardcore_killer = hardcore_killer || m->CastToClient()->IsHardcore();
+						}
+					}
+				}
+			} else if (killer->IsRaidGrouped()) {
+				Raid* r = entity_list.GetRaidByClient(killer->CastToClient());
+				if (r) {
+					for (const auto &m : r->members) {
+						if (m.member) {
+							seasonal_killer = seasonal_killer || m.member->IsSeasonal();
+							hardcore_killer = hardcore_killer || m.member->IsHardcore();
+						}
+					}
+				}
+			}
+		}
+
+		if (killer && killer->IsClient() && (seasonal_killer || hardcore_killer)) {
 			for (LootItem* item : m_loot_items) {
 				if (item != nullptr) {
 					auto old_id = item->item_id;
@@ -3089,6 +3132,9 @@ bool NPC::Death(Mob* killer_mob, int64 damage, uint16 spell, EQ::skills::SkillTy
 				TryTriuneOfFateAward(kc);
 			}
 		}
+
+		const DeathLootUpgradeContext death_upgrade_ctx = BuildDeathLootUpgradeContext(killer);
+
 
 		// ---- NMS personal loot (phase B4b) --------------------------------
 		//
@@ -3222,8 +3268,8 @@ bool NPC::Death(Mob* killer_mob, int64 damage, uint16 spell, EQ::skills::SkillTy
 			corpse_timer
 		);
 
-		corpse->SetSeasonal(death_upgrade_ctx.seasonal_killer);
-		corpse->SetHardcore(death_upgrade_ctx.hardcore_killer);
+		corpse->SetSeasonal(seasonal_killer);
+		corpse->SetHardcore(hardcore_killer);
 
 		if (killer_mob && emoteid) {
 			DoNPCEmote(EQ::constants::EmoteEventTypes::AfterDeath, emoteid, killer_mob);
@@ -3365,8 +3411,15 @@ bool NPC::Death(Mob* killer_mob, int64 damage, uint16 spell, EQ::skills::SkillTy
 
 	if (give_exp_client && !IsCorpse()) {
 		const auto& v = give_exp_client->GetRaidOrGroupOrSelf(true);
+		const auto base_zone_id = zone ? zone->GetZoneID() : 0;
 		for (const auto& m : v) {
 			m->CastToClient()->RecordKilledNPCEvent(this);
+			m->CastToClient()->UpdateAchievementForKill(
+				GetNPCTypeID(),
+				GetBaseRace(),
+				achievement_npc_name_identity,
+				base_zone_id
+			);
 
 			if (parse->HasQuestSub(GetNPCTypeID(), EVENT_KILLED_MERIT)) {
 				parse->EventNPC(EVENT_KILLED_MERIT, this, m, "killed", 0);
@@ -5535,12 +5588,66 @@ void Mob::TryCombatProcs(const EQ::ItemInstance* weapon_g, Mob *on, uint16 hand,
 	}
 
 	// Innate + aug procs from weapons
-	// TODO: powersource procs -- powersource procs are on invis augs, so shouldn't need anything extra
 	TryWeaponProc(weapon_g, weapon_g->GetItem(), on, hand);
 	// Procs from Buffs and AA both melee and range
 	TrySpellProc(weapon_g, weapon_g->GetItem(), on, hand);
 
+	// Power Source orb proc (fires once per melee round, on the primary hand, while charged)
+	if (IsClient() && hand == EQ::invslot::slotPrimary && RuleB(Custom, PowerSourceEnabled)) {
+		CastToClient()->TryPowerSourceProc(on, hand);
+	}
+
 	return;
+}
+
+void Client::TryPowerSourceProc(Mob *on, uint16 hand)
+{
+	if (!on || !IsAttackAllowed(on) || DivineAura()) {
+		return;
+	}
+
+	auto* orb = m_inv.GetItem(EQ::invslot::slotPowerSource);
+	if (!IsPowerSourceItem(orb)) {
+		return;
+	}
+
+	// An inert (depleted) orb does not proc.
+	uint32 charge = GetPowerSourceCharge(orb);
+	if (orb->GetCustomData("Power").empty()) {
+		charge = orb->GetItem()->PowerSourceCapacity;
+		const uint32 max_charge = static_cast<uint32>(std::max(0, RuleI(Custom, PowerSourceMaxCharge)));
+		if (max_charge > 0 && charge > max_charge) {
+			charge = max_charge;
+		}
+	}
+	if (charge == 0) {
+		return;
+	}
+
+	const EQ::ItemData *ps = orb->GetItem();
+	if (ps->Proc.Type != EQ::item::ItemEffectCombatProc || !IsValidSpell(ps->Proc.Effect)) {
+		return;
+	}
+
+	if (ps->Proc.Level2 > GetLevel()) {
+		return;
+	}
+
+	float proc_bonus = static_cast<float>(
+		aabonuses.ProcChanceSPA + spellbonuses.ProcChanceSPA + itembonuses.ProcChanceSPA
+	);
+	proc_bonus += static_cast<float>(itembonuses.ProcChance) / 10.0f;
+
+	const float proc_chance = GetProcChances(proc_bonus, hand);
+	const float final_chance = proc_chance * (100.0f + static_cast<float>(ps->ProcRate)) / 100.0f;
+
+	if (zone->random.Roll(final_chance)) {
+		LogCombat(
+			"Power Source [{}] procced spell [{}] on [{}]",
+			ps->Name, ps->Proc.Effect, on->GetName()
+		);
+		ExecWeaponProc(orb, ps->Proc.Effect, on);
+	}
 }
 
 void Mob::TryWeaponProc(const EQ::ItemInstance *inst, const EQ::ItemData *weapon, Mob *on, uint16 hand)
@@ -5550,6 +5657,19 @@ void Mob::TryWeaponProc(const EQ::ItemInstance *inst, const EQ::ItemData *weapon
 	}
 	if (!weapon)
 		return;
+
+	const EQ::ItemData *locker_item = nullptr;
+	if (IsClient()) {
+		locker_item = NmsVaultProcItem(CastToClient(), hand);
+		if (locker_item && !RuleB(Custom, ProcLockerStacks)) {
+			// Reference behavior: the locker item replaces the held weapon's proc and
+			// suppresses its aug procs. Stacking mode instead lets all three roll.
+			weapon = locker_item;
+			inst = nullptr;
+			locker_item = nullptr;
+		}
+	}
+
 	uint16 skillinuse = 28;
 	int ourlevel = GetLevel();
 	float ProcBonus = static_cast<float>(aabonuses.ProcChanceSPA + spellbonuses.ProcChanceSPA + itembonuses.ProcChanceSPA);
@@ -5642,11 +5762,67 @@ void Mob::TryWeaponProc(const EQ::ItemInstance *inst, const EQ::ItemData *weapon
 			}
 		}
 	}
-	// TODO: Powersource procs -- powersource procs are from augs so shouldn't need anything extra
+	// Nautilus Vault Proc Locker: independent rolls so the locker (its innate proc and
+	// its augs) procs alongside the held weapon's innate proc and aug procs
+	// (Custom:ProcLockerStacks). Same chance formula as a weapon proc, including the
+	// secondary-hand halving already in ProcChance. Ranged is covered: archery reaches
+	// here with hand = slotRange, rolling the slot-83 locker item and its augs.
+	if (IsClient() && locker_item) {
+		bool locker_proced = false;
 
-	if (!proced && IsClient()) {
-		CastToClient()->TryNMSVaultLockerProc(on, hand, ProcChance, ourlevel);
+		if (locker_item->Proc.Type == EQ::item::ItemEffectCombatProc && IsValidSpell(locker_item->Proc.Effect)) {
+			int item_proc_chance = RuleI(Custom, PetProcRateCap) && IsPet()
+				? std::min(RuleI(Custom, PetProcRateCap), locker_item->ProcRate) : locker_item->ProcRate;
+			float LPC = ProcChance * (100.0f + static_cast<float>(item_proc_chance)) / 100.0f;
+			if (zone->random.Roll(LPC)) {
+				if (locker_item->Proc.Level2 > ourlevel) {
+					LogCombat("Proc Locker item ([{}]) rolled but requires level [{}]", locker_item->Name, locker_item->Proc.Level2);
+				}
+				else {
+					LogCombat("Proc Locker item ([{}]) procing spell [{}] on [{}]", locker_item->Name, locker_item->Proc.Effect, on->GetName());
+					ExecWeaponProc(nullptr, locker_item->Proc.Effect, on);
+					locker_proced = true;
+				}
+			}
+		}
+
+		// Mirror the stock weapon gating for the locker's own augs: an innate proc
+		// suppresses them unless OneProcPerWeapon is off or the 2H override applies.
+		if (RuleB(Custom, MultipleTwoHandedProcs) && locker_item->IsType2HWeapon()) {
+			locker_proced = false;
+		}
+		else if (!RuleB(Combat, OneProcPerWeapon)) {
+			locker_proced = false;
+		}
+
+		if (!locker_proced) {
+			const EQ::ItemData *locker_augs[6] = {};
+			const int aug_count = NmsVaultProcAugs(CastToClient(), hand, locker_augs, 6);
+			for (int i = 0; i < aug_count; ++i) {
+				const EQ::ItemData *aug = locker_augs[i];
+				if (aug->Proc.Type != EQ::item::ItemEffectCombatProc || !IsValidSpell(aug->Proc.Effect)) {
+					continue;
+				}
+				int item_proc_chance = RuleI(Custom, PetProcRateCap) && IsPet()
+					? std::min(RuleI(Custom, PetProcRateCap), aug->ProcRate) : aug->ProcRate;
+				float APC = ProcChance * (100.0f + static_cast<float>(item_proc_chance)) / 100.0f;
+				if (zone->random.Roll(APC)) {
+					if (aug->Proc.Level2 > ourlevel) {
+						LogCombat("Proc Locker aug ([{}]) rolled but requires level [{}]", aug->Name, aug->Proc.Level2);
+					}
+					else {
+						LogCombat("Proc Locker aug ([{}]) procing spell [{}] on [{}]", aug->Name, aug->Proc.Effect, on->GetName());
+						ExecWeaponProc(nullptr, aug->Proc.Effect, on);
+						if (RuleB(Combat, OneProcPerWeapon)) {
+							break;
+						}
+					}
+				}
+			}
+		}
 	}
+
+	// TODO: Powersource procs -- powersource procs are from augs so shouldn't need anything extra
 
 	return;
 }
@@ -5928,9 +6104,7 @@ int Mob::GetBaseCriticalHitChance(EQ::skills::SkillType skill) {
 
     if ((HasClass(Class::Warrior) || HasClass(Class::Berserker)) && GetLevel() >= 12) {
         innate_crit = true;
-    } else if (HasClass(Class::Ranger) && GetLevel() >= 12 && (skill == EQ::skills::SkillArchery || skill == EQ::skills::SkillThrowing)) {
-        innate_crit = true;
-    } else if (HasClass(Class::Rogue) && GetLevel() >= 12 && skill == EQ::skills::SkillThrowing) {
+    } else if ((HasClass(Class::Ranger) || HasClass(Class::Rogue)) && GetLevel() >= 12) {
         innate_crit = true;
     }
 

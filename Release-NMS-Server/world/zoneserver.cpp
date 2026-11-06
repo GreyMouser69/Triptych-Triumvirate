@@ -17,12 +17,16 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 */
 #include "../common/global_define.h"
+#include "../common/fellowship/service.h"
 #include "../common/random.h"
+#include <cstring>
+#include <ctime>
 #include "zoneserver.h"
 #include "clientlist.h"
 #include "login_server.h"
 #include "login_server_list.h"
 #include "zonelist.h"
+#include "achievement_state_update_manager.h"
 #include "worlddb.h"
 #include "client.h"
 #include "../common/md5.h"
@@ -57,6 +61,8 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 extern GroupLFPList LFPGroupList;
 extern volatile bool RunLoops;
 extern volatile bool UCSServerAvailable_;
+extern AdventureManager adventure_manager;
+extern AchievementStateUpdateManager achievement_state_update_manager;
 
 void CatchSignal(int sig_num);
 
@@ -185,6 +191,61 @@ void ZoneServer::HandleMessage(uint16 opcode, const EQ::Net::Packet &p) {
 	auto pack = &tpack;
 
 	switch (opcode) {
+	case ServerOP_FellowshipChat: {
+		if (pack->size != sizeof(FellowshipChatRequest)) {
+			break;
+		}
+		const auto* request = reinterpret_cast<const FellowshipChatRequest*>(pack->pBuffer);
+		if (!request->message[0] || !std::memchr(request->message, 0, sizeof(request->message))) {
+			break;
+		}
+		auto* actor = ClientList::Instance()->FindCLEByCharacterID(request->actor_id);
+		if (!actor || actor->Server() != this || actor->Online() != CLE_Status::InZone) {
+			break;
+		}
+		Fellowship::Service fellowships(database);
+		const auto group = fellowships.GetByCharacter(actor->CharID(), static_cast<uint64_t>(std::time(nullptr)));
+		if (!group || !group.value.id) {
+			break;
+		}
+		const Fellowship::Member* sender = nullptr;
+		for (const auto& member : group.value.members) {
+			if (member.character_id == actor->CharID()) {
+				sender = &member;
+				break;
+			}
+		}
+		if (!sender) {
+			break;
+		}
+		for (const auto& member : group.value.members) {
+			// The sending client already echoes its own /fsay locally.
+			if (member.character_id == actor->CharID()) {
+				continue;
+			}
+			auto* recipient = ClientList::Instance()->FindCLEByCharacterID(member.character_id);
+			if (!recipient || recipient->Online() != CLE_Status::InZone) {
+				continue;
+			}
+			ServerPacket delivery(ServerOP_FellowshipChatDeliver, sizeof(FellowshipChatDelivery));
+			auto* payload = reinterpret_cast<FellowshipChatDelivery*>(delivery.pBuffer);
+			payload->actor_id = actor->CharID();
+			payload->recipient_id = member.character_id;
+			payload->fellowship_id = group.value.id;
+			strn0cpy(payload->sender, sender->name.c_str(), sizeof(payload->sender));
+			strn0cpy(payload->message, request->message, sizeof(payload->message));
+			ClientList::Instance()->SendPacket(member.name.c_str(), &delivery);
+		}
+		break;
+	}
+	case ServerOP_FellowshipRefresh: {
+		// Reached only through the authenticated zone connection; the payload is
+		// always empty and no client-declared membership is ever forwarded.
+		if (pack->size == 0) {
+			ZSList::Instance()->SendPacket(pack);
+		}
+		break;
+	}
 		case 0:
 		case ServerOP_KeepAlive:
 		case ServerOP_ZAAuth: {
@@ -1007,6 +1068,7 @@ void ZoneServer::HandleMessage(uint16 opcode, const EQ::Net::Packet &p) {
 		case ServerOP_GuildMemberAdd:
 		case ServerOP_GuildSendGuildList:
 		case ServerOP_GuildMembersList:
+		case ServerOP_GuildAchievement:
 		{
 			guild_mgr.ProcessZonePacket(pack);
 			break;
@@ -1355,9 +1417,24 @@ void ZoneServer::HandleMessage(uint16 opcode, const EQ::Net::Packet &p) {
 		}
 		case ServerOP_UCSServerStatusRequest: {
 			auto ucsss = (UCSServerStatus_Struct*) pack->pBuffer;
+
+			// A zone that has not been assigned a port yet reports port 0, and FindByPort(0)
+			// never matches, so this request used to be dropped. That zone then never learned
+			// UCS was available, answered its clients with nothing, and the client showed
+			// "The universal chat service is temporarily unavailable" for the whole life of
+			// the zone -- the hub zones (bazaar, poknowledge, nexus, guildlobby, ecommons)
+			// never logged a UCS status at all. Fall back to the zone that asked; it is the
+			// sender of this packet.
 			auto zs = ZSList::Instance()->FindByPort(ucsss->port);
 			if (!zs) {
-				break;
+				zs = this;
+
+				LogInfo(
+					"UCS status request from [{}] arrived with port [{}]; replying to the "
+					"requesting zone instead of dropping it",
+					GetZoneName(),
+					ucsss->port
+				);
 			}
 
 			auto outapp = new ServerPacket(ServerOP_UCSServerStatusReply, sizeof(UCSServerStatus_Struct));
@@ -1366,6 +1443,15 @@ void ZoneServer::HandleMessage(uint16 opcode, const EQ::Net::Packet &p) {
 			ucsss->timestamp = Timer::GetCurrentTime();
 			zs->SendPacket(outapp);
 			safe_delete(outapp);
+			break;
+		}
+		case ServerOP_CZAchievementStateUpdateRequest: {
+			AchievementStateUpdates::Request request;
+			if (!AchievementStateUpdates::DeserializeRequest(p, request)) {
+				LogError("Received an invalid achievement state update packet");
+				break;
+			}
+			achievement_state_update_manager.Queue(request);
 			break;
 		}
 		case ServerOP_QueryServGeneric: {
