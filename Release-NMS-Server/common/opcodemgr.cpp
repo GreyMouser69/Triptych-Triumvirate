@@ -148,7 +148,9 @@ bool RegularOpcodeManager::LoadOpcodes(const char *filename, bool report_errors)
 	MOpcodes.lock();
 
 	loaded = true;
-	eq_to_emu = new EmuOpcode[MAX_EQ_OPCODE];
+	if (eq_to_emu != nullptr) safe_delete_array(eq_to_emu);
+	eq_to_emu = new EmuOpcode[MAX_EQ_OPCODE + 1];
+	if (emu_to_eq != nullptr) safe_delete_array(emu_to_eq);
 	emu_to_eq = new uint16[_maxEmuOpcode];
 	EQOpcodeCount = MAX_EQ_OPCODE;
 	EmuOpcodeCount = _maxEmuOpcode;
@@ -185,7 +187,7 @@ uint16 RegularOpcodeManager::EmuToEQ(const EmuOpcode emu_op) {
 	res = emu_to_eq[emu_op];
 	MOpcodes.unlock();
 
-	LogNetcodeDetail("[Opcode Manager] Translate emu [{}] ({:#06x}) eq [{:#06x}]", OpcodeNames[emu_op], emu_op, res);
+	LogNetcodeDetail("[Opcode Manager] Translate emu [{}] ({:#06x}) eq [{} ({:#06x})]", OpcodeNames[emu_op], emu_op, EQToName(res), res);
 
 #ifdef DEBUG_TRANSLATE
 	fprintf(stderr, "M Translate Emu %s (%d) to EQ 0x%.4x\n", OpcodeNames[emu_op], emu_op, res);
