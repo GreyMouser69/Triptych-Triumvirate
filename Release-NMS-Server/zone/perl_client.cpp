@@ -3759,11 +3759,6 @@ perl::array Perl_Client_GetKeyRing(Client* self)
 	return result;
 }
 
-void perl_register_client()
-{
-	perl::interpreter perl(PERL_GET_THX);
-
-	auto package = perl.new_class<Client>("Client");
 void Perl_Client_ReloadNMSVaultLocker(Client* self)
 {
 	self->ReloadNMSVaultLocker();
@@ -3842,6 +3837,13 @@ void Perl_Client_NPCSayTo(Client* self, const char *npc_name, const char *messag
 
 	self->MessageString(Chat::NPCQuestSay, GENERIC_SAY, npc_name, message);
 }
+
+
+void perl_register_client()
+{
+	perl::interpreter perl(PERL_GET_THX);
+
+	auto package = perl.new_class<Client>("Client");
 
 
 	package.add_base_class("Mob");
