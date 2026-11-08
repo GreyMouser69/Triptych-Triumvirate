@@ -7150,7 +7150,7 @@ INSERT INTO `spawn2` (`spawngroupID`,`zone`,`version`,`x`,`y`,`z`,`heading`,`res
 INSERT INTO `spawngroup` (`id`,`name`,`spawn_limit`,`dist`,`delay`,`mindelay`,`despawn`) VALUES (1520008643,'sod_raid_471001_discordtower_v51',0,0,600,300,0);
 INSERT INTO `spawnentry` (`spawngroupID`,`npcID`,`chance`) VALUES (1520008643,471001,100);
 INSERT INTO `spawn2` (`spawngroupID`,`zone`,`version`,`x`,`y`,`z`,`heading`,`respawntime`) VALUES (1520008643,'discordtower',51,1,150,-48.375,0,600);
-")SODRAID91",
+)SODRAID91",
 		.content_schema_update = false,
 	},
 
@@ -7232,7 +7232,7 @@ INSERT INTO `spawn2` (`spawngroupID`,`zone`,`version`,`x`,`y`,`z`,`heading`,`res
 
 INSERT INTO `npc_types` SELECT * FROM sod_rk3_nt;
 DROP TEMPORARY TABLE sod_rk3_nt;
-")SODRK392",
+)SODRK392",
 		.content_schema_update = false,
 	},
 
@@ -7584,7 +7584,7 @@ INSERT INTO loottable_entries (loottable_id, lootdrop_id, multiplier, droplimit,
 (178716,178716,1,1,0,100),
 (178717,178717,1,1,0,100);
 INSERT INTO lootdrop_entries (lootdrop_id, item_id, item_charges, equip_item, chance, disabled_chance, trivial_min_level, trivial_max_level, multiplier, npc_min_level, npc_max_level, min_expansion, max_expansion, content_flags, content_flags_disabled)
-SELECT 178710, 121571 + 3*tier_off + class_off, 1, 0, tier_chance, 0, 0, 0, 1, 1, 10, -1, -1, '', ''
+SELECT 178710, 121571 + tier_off + class_off, 1, 0, tier_chance, 0, 0, 0, 1, 1, 10, -1, -1, '', ''
 FROM (
     SELECT 0 AS tier_off, 0.0379 AS tier_chance UNION ALL
     SELECT 1, 0.0357 UNION ALL
@@ -7597,7 +7597,7 @@ CROSS JOIN (
     UNION ALL SELECT 36 UNION ALL SELECT 39 UNION ALL SELECT 42 UNION ALL SELECT 45
 ) classes;
 INSERT INTO lootdrop_entries (lootdrop_id, item_id, item_charges, equip_item, chance, disabled_chance, trivial_min_level, trivial_max_level, multiplier, npc_min_level, npc_max_level, min_expansion, max_expansion, content_flags, content_flags_disabled)
-SELECT 178711, 121571 + 3*tier_off + class_off, 1, 0, tier_chance, 0, 0, 0, 1, 11, 20, -1, -1, '', ''
+SELECT 178711, 121571 + tier_off + class_off, 1, 0, tier_chance, 0, 0, 0, 1, 11, 20, -1, -1, '', ''
 FROM (
     SELECT 0 AS tier_off, 0.0403 AS tier_chance UNION ALL
     SELECT 1, 0.0379 UNION ALL
@@ -7610,7 +7610,7 @@ CROSS JOIN (
     UNION ALL SELECT 36 UNION ALL SELECT 39 UNION ALL SELECT 42 UNION ALL SELECT 45
 ) classes;
 INSERT INTO lootdrop_entries (lootdrop_id, item_id, item_charges, equip_item, chance, disabled_chance, trivial_min_level, trivial_max_level, multiplier, npc_min_level, npc_max_level, min_expansion, max_expansion, content_flags, content_flags_disabled)
-SELECT 178712, 121571 + 3*tier_off + class_off, 1, 0, tier_chance, 0, 0, 0, 1, 21, 30, -1, -1, '', ''
+SELECT 178712, 121571 + tier_off + class_off, 1, 0, tier_chance, 0, 0, 0, 1, 21, 30, -1, -1, '', ''
 FROM (
     SELECT 0 AS tier_off, 0.0417 AS tier_chance UNION ALL
     SELECT 1, 0.0403 UNION ALL
@@ -7623,7 +7623,7 @@ CROSS JOIN (
     UNION ALL SELECT 36 UNION ALL SELECT 39 UNION ALL SELECT 42 UNION ALL SELECT 45
 ) classes;
 INSERT INTO lootdrop_entries (lootdrop_id, item_id, item_charges, equip_item, chance, disabled_chance, trivial_min_level, trivial_max_level, multiplier, npc_min_level, npc_max_level, min_expansion, max_expansion, content_flags, content_flags_disabled)
-SELECT 178713, 121571 + 3*tier_off + class_off, 1, 0, tier_chance, 0, 0, 0, 1, 31, 40, -1, -1, '', ''
+SELECT 178713, 121571 + tier_off + class_off, 1, 0, tier_chance, 0, 0, 0, 1, 31, 40, -1, -1, '', ''
 FROM (
     SELECT 0 AS tier_off, 0.0417 AS tier_chance UNION ALL
     SELECT 1, 0.0431 UNION ALL
@@ -7636,7 +7636,7 @@ CROSS JOIN (
     UNION ALL SELECT 36 UNION ALL SELECT 39 UNION ALL SELECT 42 UNION ALL SELECT 45
 ) classes;
 INSERT INTO lootdrop_entries (lootdrop_id, item_id, item_charges, equip_item, chance, disabled_chance, trivial_min_level, trivial_max_level, multiplier, npc_min_level, npc_max_level, min_expansion, max_expansion, content_flags, content_flags_disabled)
-SELECT 178714, 121571 + 3*tier_off + class_off, 1, 0, tier_chance, 0, 0, 0, 1, 41, 55, -1, -1, '', ''
+SELECT 178714, 121571 + tier_off + class_off, 1, 0, tier_chance, 0, 0, 0, 1, 41, 55, -1, -1, '', ''
 FROM (
     SELECT 0 AS tier_off, 0.0431 AS tier_chance UNION ALL
     SELECT 1, 0.0446 UNION ALL
@@ -7649,7 +7649,7 @@ CROSS JOIN (
     UNION ALL SELECT 36 UNION ALL SELECT 39 UNION ALL SELECT 42 UNION ALL SELECT 45
 ) classes;
 INSERT INTO lootdrop_entries (lootdrop_id, item_id, item_charges, equip_item, chance, disabled_chance, trivial_min_level, trivial_max_level, multiplier, npc_min_level, npc_max_level, min_expansion, max_expansion, content_flags, content_flags_disabled)
-SELECT 178715, 121571 + 3*tier_off + class_off, 1, 0, tier_chance, 0, 0, 0, 1, 56, 70, -1, -1, '', ''
+SELECT 178715, 121571 + tier_off + class_off, 1, 0, tier_chance, 0, 0, 0, 1, 56, 70, -1, -1, '', ''
 FROM (
     SELECT 0 AS tier_off, 0.0431 AS tier_chance UNION ALL
     SELECT 1, 0.0446 UNION ALL
@@ -7662,7 +7662,7 @@ CROSS JOIN (
     UNION ALL SELECT 36 UNION ALL SELECT 39 UNION ALL SELECT 42 UNION ALL SELECT 45
 ) classes;
 INSERT INTO lootdrop_entries (lootdrop_id, item_id, item_charges, equip_item, chance, disabled_chance, trivial_min_level, trivial_max_level, multiplier, npc_min_level, npc_max_level, min_expansion, max_expansion, content_flags, content_flags_disabled)
-SELECT 178716, 121571 + 3*tier_off + class_off, 1, 0, tier_chance, 0, 0, 0, 1, 71, 85, -1, -1, '', ''
+SELECT 178716, 121571 + tier_off + class_off, 1, 0, tier_chance, 0, 0, 0, 1, 71, 85, -1, -1, '', ''
 FROM (
     SELECT 0 AS tier_off, 0.0431 AS tier_chance UNION ALL
     SELECT 1, 0.0446 UNION ALL
@@ -9296,7 +9296,7 @@ INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180045,'Scroll: Benediction Rk. II',20,504,65535,1,1,1,250000,7,14991,76,'Scroll: Benediction Rk. II',0);
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180046,'Scroll: Shield of Spurs Rk. II',20,504,65535,1,1,1,250000,7,15018,76,'Scroll: Shield of Spurs Rk. II',0);
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180047,'Scroll: Horde of Hornets Rk. II',20,504,65535,1,1,1,250000,7,15024,76,'Scroll: Horde of Hornets Rk. II',0);
-")SODVEND110"
+)SODVEND110"
 		R"SODVEND110(
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180048,'Scroll: Dragonscale Aquifer Rk. II',20,504,65535,1,1,1,250000,7,15027,76,'Scroll: Dragonscale Aquifer Rk. II',0);
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180049,'Scroll: Drifting Haze Rk. II',20,504,65535,1,1,1,250000,7,15036,76,'Scroll: Drifting Haze Rk. II',0);
@@ -9347,7 +9347,7 @@ INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180094,'Scroll: Reaping Inferno Rk. II',20,504,65535,1,1,1,250000,7,14480,77,'Scroll: Reaping Inferno Rk. II',0);
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180095,'Scroll: Silent Mind Rk. II',20,504,65535,1,1,1,250000,7,14510,77,'Scroll: Silent Mind Rk. II',0);
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180096,'Scroll: Speed of Erradien Rk. II',20,504,65535,1,1,1,250000,7,14513,77,'Scroll: Speed of Erradien Rk. II',0);
-")SODVEND110"
+)SODVEND110"
 		R"SODVEND110(
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180097,'Scroll: Din of Tashan Rk. II',20,504,65535,1,1,1,250000,7,14516,77,'Scroll: Din of Tashan Rk. II',0);
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180098,'Scroll: Cajole Rk. II',20,504,65535,1,1,1,250000,7,14519,77,'Scroll: Cajole Rk. II',0);
@@ -9398,7 +9398,7 @@ INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180143,'Scroll: Kildrukaun''s Chant of Poison Rk. II',20,504,65535,1,1,1,250000,7,14070,78,'Scroll: Kildrukaun''s Chant of Poison Rk. II',0);
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180144,'Scroll: Promised Recovery Rk. II',20,504,65535,1,1,1,250000,7,14109,78,'Scroll: Promised Recovery Rk. II',0);
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180145,'Scroll: Peerless Penchant Rk. II',20,504,65535,1,1,1,250000,7,14115,78,'Scroll: Peerless Penchant Rk. II',0);
-")SODVEND110"
+)SODVEND110"
 		R"SODVEND110(
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180146,'Scroll: Bite of the Borrower Rk. II',20,504,65535,1,1,1,250000,7,14146,78,'Scroll: Bite of the Borrower Rk. II',0);
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180147,'Scroll: Temple Strike Rk. II',20,504,65535,1,1,1,250000,7,14184,78,'Scroll: Temple Strike Rk. II',0);
@@ -9449,7 +9449,7 @@ INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180192,'Scroll: Umbral Carapace Rk. II',20,504,65535,1,1,1,250000,7,15212,78,'Scroll: Umbral Carapace Rk. II',0);
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180193,'Scroll: Rigor Mortis Rk. II',20,504,65535,1,1,1,250000,7,15224,78,'Scroll: Rigor Mortis Rk. II',0);
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180194,'Scroll: Gemmi''s Mending Rk. II',20,504,65535,1,1,1,250000,7,15260,78,'Scroll: Gemmi''s Mending Rk. II',0);
-")SODVEND110"
+)SODVEND110"
 		R"SODVEND110(
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180195,'Scroll: Bloodworg Focusing Rk. II',20,504,65535,1,1,1,250000,7,15263,78,'Scroll: Bloodworg Focusing Rk. II',0);
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180196,'Scroll: Ancestral Hearkening Rk. II',20,504,65535,1,1,1,250000,7,15272,78,'Scroll: Ancestral Hearkening Rk. II',0);
@@ -9500,7 +9500,7 @@ INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180241,'Scroll: Burning Brimbody Rk. II',20,504,65535,1,1,1,250000,7,14779,79,'Scroll: Burning Brimbody Rk. II',0);
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180242,'Scroll: Wheel of Fists Rk. II',20,504,65535,1,1,1,250000,7,14797,79,'Scroll: Wheel of Fists Rk. II',0);
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180243,'Scroll: Crystalpalm Discipline Rk. II',20,504,65535,1,1,1,250000,7,14821,79,'Scroll: Crystalpalm Discipline Rk. II',0);
-")SODVEND110"
+)SODVEND110"
 		R"SODVEND110(
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180244,'Scroll: Auroral Darkness Rk. II',20,504,65535,1,1,1,250000,7,14869,79,'Scroll: Auroral Darkness Rk. II',0);
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180245,'Scroll: Visziaj''s Pallid Haze Rk. II',20,504,65535,1,1,1,250000,7,14892,79,'Scroll: Visziaj''s Pallid Haze Rk. II',0);
@@ -9551,7 +9551,7 @@ INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180290,'Scroll: Elixir of Atonement Rk. II',20,504,65535,1,1,1,250000,7,14304,80,'Scroll: Elixir of Atonement Rk. II',0);
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180291,'Scroll: Rallied Shield of Vie Rk. II',20,504,65535,1,1,1,250000,7,14307,80,'Scroll: Rallied Shield of Vie Rk. II',0);
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180292,'Scroll: Blood of the Devoted Rk. II',20,504,65535,1,1,1,250000,7,14316,80,'Scroll: Blood of the Devoted Rk. II',0);
-")SODVEND110"
+)SODVEND110"
 		R"SODVEND110(
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180293,'Scroll: Circle of Divinity Rk. II',20,504,65535,1,1,1,250000,7,14326,80,'Scroll: Circle of Divinity Rk. II',0);
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180294,'Scroll: Frantic Renewal Rk. II',20,504,65535,1,1,1,250000,7,14344,80,'Scroll: Frantic Renewal Rk. II',0);
@@ -9602,7 +9602,7 @@ INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180339,'Scroll: Talisman of the Bloodworg Rk. II',20,504,65535,1,1,1,250000,7,15305,80,'Scroll: Talisman of the Bloodworg Rk. II',0);
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180340,'Scroll: Shade of Renewal Rk. II',20,504,65535,1,1,1,250000,7,15321,80,'Scroll: Shade of Renewal Rk. II',0);
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180341,'Scroll: Thorn Wilting Rk. II',20,504,65535,1,1,1,250000,7,15334,80,'Scroll: Thorn Wilting Rk. II',0);
-")SODVEND110"
+)SODVEND110"
 		R"SODVEND110(
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180342,'Scroll: Ward of Resurgence Rk. II',20,504,65535,1,1,1,250000,7,15337,80,'Scroll: Ward of Resurgence Rk. II',0);
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180343,'Scroll: Sneer Rk. II',20,504,65535,1,1,1,250000,7,15361,80,'Scroll: Sneer Rk. II',0);
@@ -9654,7 +9654,7 @@ INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180389,'Scroll: Drain Essence Rk. II',20,504,65535,1,1,1,250000,7,18952,81,'Scroll: Drain Essence Rk. II',0);
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180390,'Scroll: Finsternacht Orb Rk. II',20,504,65535,1,1,1,250000,7,19016,81,'Scroll: Finsternacht Orb Rk. II',0);
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180391,'Scroll: Devout Touch Rk. II',20,504,65535,1,1,1,250000,7,19054,81,'Scroll: Devout Touch Rk. II',0);
-")SODVEND110"
+)SODVEND110"
 		R"SODVEND110(
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180392,'Scroll: Devout Force Rk. II',20,504,65535,1,1,1,250000,7,19057,81,'Scroll: Devout Force Rk. II',0);
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180393,'Scroll: Expiation Rk. II',20,504,65535,1,1,1,250000,7,19066,81,'Scroll: Expiation Rk. II',0);
@@ -9706,7 +9706,7 @@ INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180439,'Scroll: Granvida Rk. II',20,504,65535,1,1,1,250000,7,18432,82,'Scroll: Granvida Rk. II',0);
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180440,'Scroll: Harvesting Inferno Rk. II',20,504,65535,1,1,1,250000,7,18520,82,'Scroll: Harvesting Inferno Rk. II',0);
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180441,'Scroll: Promised Reknit Rk. II',20,504,65535,1,1,1,250000,7,18535,82,'Scroll: Promised Reknit Rk. II',0);
-")SODVEND110"
+)SODVEND110"
 		R"SODVEND110(
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180442,'Scroll: Hushed Mind Rk. II',20,504,65535,1,1,1,250000,7,18568,82,'Scroll: Hushed Mind Rk. II',0);
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180443,'Scroll: Bark of Tashan Rk. II',20,504,65535,1,1,1,250000,7,18574,82,'Scroll: Bark of Tashan Rk. II',0);
@@ -9757,7 +9757,7 @@ INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180488,'Scroll: Bite of the Vitrik Rk. II',20,504,65535,1,1,1,250000,7,18158,83,'Scroll: Bite of the Vitrik Rk. II',0);
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180489,'Scroll: Temple Bash Rk. II',20,504,65535,1,1,1,250000,7,18205,83,'Scroll: Temple Bash Rk. II',0);
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180490,'Scroll: Blood Hatchet Rk. II',20,504,65535,1,1,1,250000,7,18211,83,'Scroll: Blood Hatchet Rk. II',0);
-")SODVEND110"
+)SODVEND110"
 		R"SODVEND110(
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180491,'Scroll: Repel Corruption Rk. II',20,504,65535,1,1,1,250000,7,18244,83,'Scroll: Repel Corruption Rk. II',0);
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180492,'Scroll: Palladium of Vie Rk. II',20,504,65535,1,1,1,250000,7,18259,83,'Scroll: Palladium of Vie Rk. II',0);
@@ -9809,7 +9809,7 @@ INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180538,'Scroll: Venril''s Covenant Rk. II',20,504,65535,1,1,1,250000,7,19332,83,'Scroll: Venril''s Covenant Rk. II',0);
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180539,'Scroll: Malarian Carapace Rk. II',20,504,65535,1,1,1,250000,7,19365,83,'Scroll: Malarian Carapace Rk. II',0);
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180540,'Scroll: Dannal''s Mending Rk. II',20,504,65535,1,1,1,250000,7,19422,83,'Scroll: Dannal''s Mending Rk. II',0);
-")SODVEND110"
+)SODVEND110"
 		R"SODVEND110(
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180541,'Scroll: Darkpaw Focusing Rk. II',20,504,65535,1,1,1,250000,7,19425,83,'Scroll: Darkpaw Focusing Rk. II',0);
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180542,'Scroll: Ancestral Obligation Rk. II',20,504,65535,1,1,1,250000,7,19434,83,'Scroll: Ancestral Obligation Rk. II',0);
@@ -9860,7 +9860,7 @@ INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180587,'Scroll: Tectonic Tumult Rk. II',20,504,65535,1,1,1,250000,7,18289,84,'Scroll: Tectonic Tumult Rk. II',0);
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180588,'Scroll: Abolish Corruption Rk. II',20,504,65535,1,1,1,250000,7,18307,84,'Scroll: Abolish Corruption Rk. II',0);
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180589,'Scroll: Silent Edict Rk. II',20,504,65535,1,1,1,250000,7,18313,84,'Scroll: Silent Edict Rk. II',0);
-")SODVEND110"
+)SODVEND110"
 		R"SODVEND110(
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180590,'Scroll: Unwavering Hammer of Zeal Rk. II',20,504,65535,1,1,1,250000,7,18331,84,'Scroll: Unwavering Hammer of Zeal Rk. II',0);
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180591,'Scroll: Chromassail Rk. II',20,504,65535,1,1,1,250000,7,18359,84,'Scroll: Chromassail Rk. II',0);
@@ -9911,7 +9911,7 @@ INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180636,'Scroll: Nectar of the Slitheren Rk. II',20,504,65535,1,1,1,250000,7,19480,84,'Scroll: Nectar of the Slitheren Rk. II',0);
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180637,'Scroll: Maelstrom Blade Rk. II',20,504,65535,1,1,1,250000,7,19529,84,'Scroll: Maelstrom Blade Rk. II',0);
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180638,'Scroll: Punch Through Rk. II',20,504,65535,1,1,1,250000,7,19553,84,'Scroll: Punch Through Rk. II',0);
-")SODVEND110"
+)SODVEND110"
 		R"SODVEND110(
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180639,'Scroll: Crystalwing Shell Rk. II',20,504,65535,1,1,1,250000,7,19624,84,'Scroll: Crystalwing Shell Rk. II',0);
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180640,'Scroll: Magmatic Eruption Rk. II',20,504,65535,1,1,1,250000,7,19627,84,'Scroll: Magmatic Eruption Rk. II',0);
@@ -9962,7 +9962,7 @@ INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180685,'Scroll: Mind Twist Rk. II',20,504,65535,1,1,1,250000,7,18652,85,'Scroll: Mind Twist Rk. II',0);
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180686,'Scroll: Mana Reiterate Aura Rk. II',20,504,65535,1,1,1,250000,7,18679,85,'Scroll: Mana Reiterate Aura Rk. II',0);
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180687,'Scroll: Fickle Blaze Rk. II',20,504,65535,1,1,1,250000,7,18790,85,'Scroll: Fickle Blaze Rk. II',0);
-")SODVEND110"
+)SODVEND110"
 		R"SODVEND110(
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180688,'Scroll: Ethereal Symbiosis Rk. II',20,504,65535,1,1,1,250000,7,18793,85,'Scroll: Ethereal Symbiosis Rk. II',0);
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180689,'Scroll: Mass Ethereal Transvergence Rk. II',20,504,65535,1,1,1,250000,7,18799,85,'Scroll: Mass Ethereal Transvergence Rk. II',0);
@@ -10014,7 +10014,7 @@ INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180735,'Scroll: Axe of Rallos Rk. II',20,504,65535,1,1,1,250000,7,19742,85,'Scroll: Axe of Rallos Rk. II',0);
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180736,'Scroll: Erud''s Retort Rk. II',20,504,65535,1,1,1,250000,7,19757,85,'Scroll: Erud''s Retort Rk. II',0);
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180737,'Scroll: Erud''s Channeled Mark Rk. II',20,504,65535,1,1,1,250000,7,19760,85,'Scroll: Erud''s Channeled Mark Rk. II',0);
-")SODVEND110"
+)SODVEND110"
 		R"SODVEND110(
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180738,'Scroll: Erud''s Retort Effect Rk. II',20,504,65535,1,1,1,250000,7,19763,85,'Scroll: Erud''s Retort Effect Rk. II',0);
 INSERT INTO `items` (`id`,`name`,`itemtype`,`icon`,`classes`,`nodrop`,`weight`,`size`,`price`,`scrolltype`,`scrolleffect`,`scrolllevel`,`lore`,`loregroup`) VALUES (180739,'Scroll: Hypnotic Stare Rk. II',20,504,65535,1,1,1,250000,7,19791,85,'Scroll: Hypnotic Stare Rk. II',0);
@@ -10113,7 +10113,7 @@ INSERT INTO `merchantlist` (`merchantid`,`slot`,`item`) VALUES (461000,2,103118)
 INSERT INTO `merchantlist` (`merchantid`,`slot`,`item`) VALUES (461000,3,103123);
 INSERT INTO `merchantlist` (`merchantid`,`slot`,`item`) VALUES (461000,4,103128);
 INSERT INTO `merchantlist` (`merchantid`,`slot`,`item`) VALUES (462000,1,103113);
-")SODVEND110"
+)SODVEND110"
 		R"SODVEND110(
 INSERT INTO `merchantlist` (`merchantid`,`slot`,`item`) VALUES (462000,2,103118);
 INSERT INTO `merchantlist` (`merchantid`,`slot`,`item`) VALUES (462000,3,103123);
@@ -10298,7 +10298,7 @@ INSERT INTO `merchantlist` (`merchantid`,`slot`,`item`,`faction_required`) VALUE
 INSERT INTO `merchantlist` (`merchantid`,`slot`,`item`,`faction_required`) VALUES (999999,54,180049,750);
 INSERT INTO `merchantlist` (`merchantid`,`slot`,`item`,`faction_required`) VALUES (999999,55,180050,750);
 INSERT INTO `merchantlist` (`merchantid`,`slot`,`item`,`faction_required`) VALUES (999999,56,180051,750);
-")SODVEND110"
+)SODVEND110"
 		R"SODVEND110(
 INSERT INTO `merchantlist` (`merchantid`,`slot`,`item`,`faction_required`) VALUES (999999,57,180052,750);
 INSERT INTO `merchantlist` (`merchantid`,`slot`,`item`,`faction_required`) VALUES (999999,58,180053,750);
@@ -10431,7 +10431,7 @@ INSERT INTO `merchantlist` (`merchantid`,`slot`,`item`,`faction_required`) VALUE
 INSERT INTO `merchantlist` (`merchantid`,`slot`,`item`,`faction_required`) VALUES (999999,185,180180,750);
 INSERT INTO `merchantlist` (`merchantid`,`slot`,`item`,`faction_required`) VALUES (999999,186,180181,750);
 INSERT INTO `merchantlist` (`merchantid`,`slot`,`item`,`faction_required`) VALUES (999999,187,180182,750);
-")SODVEND110"
+)SODVEND110"
 		R"SODVEND110(
 INSERT INTO `merchantlist` (`merchantid`,`slot`,`item`,`faction_required`) VALUES (999999,188,180183,750);
 INSERT INTO `merchantlist` (`merchantid`,`slot`,`item`,`faction_required`) VALUES (999999,189,180184,750);
@@ -10563,7 +10563,7 @@ INSERT INTO `merchantlist` (`merchantid`,`slot`,`item`,`faction_required`) VALUE
 INSERT INTO `merchantlist` (`merchantid`,`slot`,`item`,`faction_required`) VALUES (999999,315,180310,750);
 INSERT INTO `merchantlist` (`merchantid`,`slot`,`item`,`faction_required`) VALUES (999999,316,180311,750);
 INSERT INTO `merchantlist` (`merchantid`,`slot`,`item`,`faction_required`) VALUES (999999,317,180312,750);
-")SODVEND110"
+)SODVEND110"
 		R"SODVEND110(
 INSERT INTO `merchantlist` (`merchantid`,`slot`,`item`,`faction_required`) VALUES (999999,318,180313,750);
 INSERT INTO `merchantlist` (`merchantid`,`slot`,`item`,`faction_required`) VALUES (999999,319,180314,750);
@@ -10695,7 +10695,7 @@ INSERT INTO `merchantlist` (`merchantid`,`slot`,`item`,`faction_required`) VALUE
 INSERT INTO `merchantlist` (`merchantid`,`slot`,`item`,`faction_required`) VALUES (999999,445,180440,750);
 INSERT INTO `merchantlist` (`merchantid`,`slot`,`item`,`faction_required`) VALUES (999999,446,180441,750);
 INSERT INTO `merchantlist` (`merchantid`,`slot`,`item`,`faction_required`) VALUES (999999,447,180442,750);
-")SODVEND110"
+)SODVEND110"
 		R"SODVEND110(
 INSERT INTO `merchantlist` (`merchantid`,`slot`,`item`,`faction_required`) VALUES (999999,448,180443,750);
 INSERT INTO `merchantlist` (`merchantid`,`slot`,`item`,`faction_required`) VALUES (999999,449,180444,750);
@@ -10827,7 +10827,7 @@ INSERT INTO `merchantlist` (`merchantid`,`slot`,`item`,`faction_required`) VALUE
 INSERT INTO `merchantlist` (`merchantid`,`slot`,`item`,`faction_required`) VALUES (999999,575,180570,750);
 INSERT INTO `merchantlist` (`merchantid`,`slot`,`item`,`faction_required`) VALUES (999999,576,180571,750);
 INSERT INTO `merchantlist` (`merchantid`,`slot`,`item`,`faction_required`) VALUES (999999,577,180572,750);
-")SODVEND110"
+)SODVEND110"
 		R"SODVEND110(
 INSERT INTO `merchantlist` (`merchantid`,`slot`,`item`,`faction_required`) VALUES (999999,578,180573,750);
 INSERT INTO `merchantlist` (`merchantid`,`slot`,`item`,`faction_required`) VALUES (999999,579,180574,750);
@@ -10959,7 +10959,7 @@ INSERT INTO `merchantlist` (`merchantid`,`slot`,`item`,`faction_required`) VALUE
 INSERT INTO `merchantlist` (`merchantid`,`slot`,`item`,`faction_required`) VALUES (999999,705,180700,750);
 INSERT INTO `merchantlist` (`merchantid`,`slot`,`item`,`faction_required`) VALUES (999999,706,180701,750);
 INSERT INTO `merchantlist` (`merchantid`,`slot`,`item`,`faction_required`) VALUES (999999,707,180702,750);
-")SODVEND110"
+)SODVEND110"
 		R"SODVEND110(
 INSERT INTO `merchantlist` (`merchantid`,`slot`,`item`,`faction_required`) VALUES (999999,708,180703,750);
 INSERT INTO `merchantlist` (`merchantid`,`slot`,`item`,`faction_required`) VALUES (999999,709,180704,750);
@@ -11043,7 +11043,7 @@ INSERT INTO `npc_types` SELECT * FROM sod_vendor_portal_nt;
 INSERT INTO `spawngroup` (`id`,`name`,`spawn_limit`,`dist`,`delay`,`mindelay`,`despawn`) VALUES (1520008657,'sod_void_rift_potimea',0,0,600,300,0);
 INSERT INTO `spawnentry` (`spawngroupID`,`npcID`,`chance`) VALUES (1520008657,478757,100);
 INSERT INTO `spawn2` (`spawngroupID`,`zone`,`version`,`x`,`y`,`z`,`heading`,`respawntime`) VALUES (1520008657,'potimea',0,110,0,8,0,600);
-")SODVEND110",
+)SODVEND110",
 		.content_schema_update = false,
 	},
 
@@ -11166,7 +11166,7 @@ INSERT INTO `spawn2` (`spawngroupID`,`zone`,`version`,`x`,`y`,`z`,`heading`,`res
 DELETE FROM `zone` WHERE `short_name` = 'bertoxtemple' AND `version` = 51;
 INSERT INTO `zone` (zoneidnumber,version,short_name,long_name,min_status,map_file_name,note,min_expansion,max_expansion,content_flags,content_flags_disabled,expansion,file_name,safe_x,safe_y,safe_z,safe_heading,graveyard_id,min_level,max_level,timezone,maxclients,ruleset,underworld,minclip,maxclip,fog_minclip,fog_maxclip,fog_blue,fog_red,fog_green,sky,ztype,zone_exp_multiplier,walkspeed,time_type,fog_red1,fog_green1,fog_blue1,fog_minclip1,fog_maxclip1,fog_red2,fog_green2,fog_blue2,fog_minclip2,fog_maxclip2,fog_red3,fog_green3,fog_blue3,fog_minclip3,fog_maxclip3,fog_red4,fog_green4,fog_blue4,fog_minclip4,fog_maxclip4,fog_density,flag_needed,canbind,cancombat,canlevitate,castoutdoor,hotzone,insttype,shutdowndelay,peqzone,bypass_expansion_check,suspendbuffs,rain_chance1,rain_chance2,rain_chance3,rain_chance4,rain_duration1,rain_duration2,rain_duration3,rain_duration4,snow_chance1,snow_chance2,snow_chance3,snow_chance4,snow_duration1,snow_duration2,snow_duration3,snow_duration4,gravity,type,skylock,fast_regen_hp,fast_regen_mana,fast_regen_endurance,npc_max_aggro_dist,npc_update_range,client_update_range,max_movement_update_range,underworld_teleport_index,lava_damage,min_lava_damage,idle_when_empty,seconds_before_idle,shard_at_player_count) SELECT `zoneidnumber`, 51, `short_name`, `long_name`, `min_status`, `map_file_name`, `note`, `min_expansion`, `max_expansion`, `content_flags`, `content_flags_disabled`, `expansion`, `file_name`, `safe_x`, `safe_y`, `safe_z`, `safe_heading`, `graveyard_id`, `min_level`, `max_level`, `timezone`, `maxclients`, `ruleset`, `underworld`, `minclip`, `maxclip`, `fog_minclip`, `fog_maxclip`, `fog_blue`, `fog_red`, `fog_green`, `sky`, `ztype`, `zone_exp_multiplier`, `walkspeed`, `time_type`, `fog_red1`, `fog_green1`, `fog_blue1`, `fog_minclip1`, `fog_maxclip1`, `fog_red2`, `fog_green2`, `fog_blue2`, `fog_minclip2`, `fog_maxclip2`, `fog_red3`, `fog_green3`, `fog_blue3`, `fog_minclip3`, `fog_maxclip3`, `fog_red4`, `fog_green4`, `fog_blue4`, `fog_minclip4`, `fog_maxclip4`, `fog_density`, `flag_needed`, `canbind`, `cancombat`, `canlevitate`, `castoutdoor`, `hotzone`, `insttype`, `shutdowndelay`, `peqzone`, `bypass_expansion_check`, `suspendbuffs`, `rain_chance1`, `rain_chance2`, `rain_chance3`, `rain_chance4`, `rain_duration1`, `rain_duration2`, `rain_duration3`, `rain_duration4`, `snow_chance1`, `snow_chance2`, `snow_chance3`, `snow_chance4`, `snow_duration1`, `snow_duration2`, `snow_duration3`, `snow_duration4`, `gravity`, `type`, `skylock`, `fast_regen_hp`, `fast_regen_mana`, `fast_regen_endurance`, `npc_max_aggro_dist`, `npc_update_range`, `client_update_range`, `max_movement_update_range`, `underworld_teleport_index`, `lava_damage`, `min_lava_damage`, `idle_when_empty`, `seconds_before_idle`, `shard_at_player_count` FROM `zone` WHERE `short_name` = 'bertoxtemple' AND `version` = 0;
 
-")SODP2111"
+)SODP2111"
 		R"SODP2111(
 DELETE FROM `zone` WHERE `short_name` = 'oldkithicor' AND `version` = 51;
 INSERT INTO `zone` (zoneidnumber,version,short_name,long_name,min_status,map_file_name,note,min_expansion,max_expansion,content_flags,content_flags_disabled,expansion,file_name,safe_x,safe_y,safe_z,safe_heading,graveyard_id,min_level,max_level,timezone,maxclients,ruleset,underworld,minclip,maxclip,fog_minclip,fog_maxclip,fog_blue,fog_red,fog_green,sky,ztype,zone_exp_multiplier,walkspeed,time_type,fog_red1,fog_green1,fog_blue1,fog_minclip1,fog_maxclip1,fog_red2,fog_green2,fog_blue2,fog_minclip2,fog_maxclip2,fog_red3,fog_green3,fog_blue3,fog_minclip3,fog_maxclip3,fog_red4,fog_green4,fog_blue4,fog_minclip4,fog_maxclip4,fog_density,flag_needed,canbind,cancombat,canlevitate,castoutdoor,hotzone,insttype,shutdowndelay,peqzone,bypass_expansion_check,suspendbuffs,rain_chance1,rain_chance2,rain_chance3,rain_chance4,rain_duration1,rain_duration2,rain_duration3,rain_duration4,snow_chance1,snow_chance2,snow_chance3,snow_chance4,snow_duration1,snow_duration2,snow_duration3,snow_duration4,gravity,type,skylock,fast_regen_hp,fast_regen_mana,fast_regen_endurance,npc_max_aggro_dist,npc_update_range,client_update_range,max_movement_update_range,underworld_teleport_index,lava_damage,min_lava_damage,idle_when_empty,seconds_before_idle,shard_at_player_count) SELECT `zoneidnumber`, 51, `short_name`, `long_name`, `min_status`, `map_file_name`, `note`, `min_expansion`, `max_expansion`, `content_flags`, `content_flags_disabled`, `expansion`, `file_name`, `safe_x`, `safe_y`, `safe_z`, `safe_heading`, `graveyard_id`, `min_level`, `max_level`, `timezone`, `maxclients`, `ruleset`, `underworld`, `minclip`, `maxclip`, `fog_minclip`, `fog_maxclip`, `fog_blue`, `fog_red`, `fog_green`, `sky`, `ztype`, `zone_exp_multiplier`, `walkspeed`, `time_type`, `fog_red1`, `fog_green1`, `fog_blue1`, `fog_minclip1`, `fog_maxclip1`, `fog_red2`, `fog_green2`, `fog_blue2`, `fog_minclip2`, `fog_maxclip2`, `fog_red3`, `fog_green3`, `fog_blue3`, `fog_minclip3`, `fog_maxclip3`, `fog_red4`, `fog_green4`, `fog_blue4`, `fog_minclip4`, `fog_maxclip4`, `fog_density`, `flag_needed`, `canbind`, `cancombat`, `canlevitate`, `castoutdoor`, `hotzone`, `insttype`, `shutdowndelay`, `peqzone`, `bypass_expansion_check`, `suspendbuffs`, `rain_chance1`, `rain_chance2`, `rain_chance3`, `rain_chance4`, `rain_duration1`, `rain_duration2`, `rain_duration3`, `rain_duration4`, `snow_chance1`, `snow_chance2`, `snow_chance3`, `snow_chance4`, `snow_duration1`, `snow_duration2`, `snow_duration3`, `snow_duration4`, `gravity`, `type`, `skylock`, `fast_regen_hp`, `fast_regen_mana`, `fast_regen_endurance`, `npc_max_aggro_dist`, `npc_update_range`, `client_update_range`, `max_movement_update_range`, `underworld_teleport_index`, `lava_damage`, `min_lava_damage`, `idle_when_empty`, `seconds_before_idle`, `shard_at_player_count` FROM `zone` WHERE `short_name` = 'oldkithicor' AND `version` = 0;
@@ -11181,7 +11181,7 @@ DELETE FROM `zone` WHERE `short_name` = 'discord' AND `version` = 51;
 INSERT INTO `zone` (zoneidnumber,version,short_name,long_name,min_status,map_file_name,note,min_expansion,max_expansion,content_flags,content_flags_disabled,expansion,file_name,safe_x,safe_y,safe_z,safe_heading,graveyard_id,min_level,max_level,timezone,maxclients,ruleset,underworld,minclip,maxclip,fog_minclip,fog_maxclip,fog_blue,fog_red,fog_green,sky,ztype,zone_exp_multiplier,walkspeed,time_type,fog_red1,fog_green1,fog_blue1,fog_minclip1,fog_maxclip1,fog_red2,fog_green2,fog_blue2,fog_minclip2,fog_maxclip2,fog_red3,fog_green3,fog_blue3,fog_minclip3,fog_maxclip3,fog_red4,fog_green4,fog_blue4,fog_minclip4,fog_maxclip4,fog_density,flag_needed,canbind,cancombat,canlevitate,castoutdoor,hotzone,insttype,shutdowndelay,peqzone,bypass_expansion_check,suspendbuffs,rain_chance1,rain_chance2,rain_chance3,rain_chance4,rain_duration1,rain_duration2,rain_duration3,rain_duration4,snow_chance1,snow_chance2,snow_chance3,snow_chance4,snow_duration1,snow_duration2,snow_duration3,snow_duration4,gravity,type,skylock,fast_regen_hp,fast_regen_mana,fast_regen_endurance,npc_max_aggro_dist,npc_update_range,client_update_range,max_movement_update_range,underworld_teleport_index,lava_damage,min_lava_damage,idle_when_empty,seconds_before_idle,shard_at_player_count) SELECT `zoneidnumber`, 51, `short_name`, `long_name`, `min_status`, `map_file_name`, `note`, `min_expansion`, `max_expansion`, `content_flags`, `content_flags_disabled`, `expansion`, `file_name`, `safe_x`, `safe_y`, `safe_z`, `safe_heading`, `graveyard_id`, `min_level`, `max_level`, `timezone`, `maxclients`, `ruleset`, `underworld`, `minclip`, `maxclip`, `fog_minclip`, `fog_maxclip`, `fog_blue`, `fog_red`, `fog_green`, `sky`, `ztype`, `zone_exp_multiplier`, `walkspeed`, `time_type`, `fog_red1`, `fog_green1`, `fog_blue1`, `fog_minclip1`, `fog_maxclip1`, `fog_red2`, `fog_green2`, `fog_blue2`, `fog_minclip2`, `fog_maxclip2`, `fog_red3`, `fog_green3`, `fog_blue3`, `fog_minclip3`, `fog_maxclip3`, `fog_red4`, `fog_green4`, `fog_blue4`, `fog_minclip4`, `fog_maxclip4`, `fog_density`, `flag_needed`, `canbind`, `cancombat`, `canlevitate`, `castoutdoor`, `hotzone`, `insttype`, `shutdowndelay`, `peqzone`, `bypass_expansion_check`, `suspendbuffs`, `rain_chance1`, `rain_chance2`, `rain_chance3`, `rain_chance4`, `rain_duration1`, `rain_duration2`, `rain_duration3`, `rain_duration4`, `snow_chance1`, `snow_chance2`, `snow_chance3`, `snow_chance4`, `snow_duration1`, `snow_duration2`, `snow_duration3`, `snow_duration4`, `gravity`, `type`, `skylock`, `fast_regen_hp`, `fast_regen_mana`, `fast_regen_endurance`, `npc_max_aggro_dist`, `npc_update_range`, `client_update_range`, `max_movement_update_range`, `underworld_teleport_index`, `lava_damage`, `min_lava_damage`, `idle_when_empty`, `seconds_before_idle`, `shard_at_player_count` FROM `zone` WHERE `short_name` = 'discord' AND `version` = 0;
 
 DELETE FROM `zone` WHERE `short_name` = 'discord' AND `version` = 52;
-")SODP2111"
+)SODP2111"
 		R"SODP2111(
 INSERT INTO `zone` (zoneidnumber,version,short_name,long_name,min_status,map_file_name,note,min_expansion,max_expansion,content_flags,content_flags_disabled,expansion,file_name,safe_x,safe_y,safe_z,safe_heading,graveyard_id,min_level,max_level,timezone,maxclients,ruleset,underworld,minclip,maxclip,fog_minclip,fog_maxclip,fog_blue,fog_red,fog_green,sky,ztype,zone_exp_multiplier,walkspeed,time_type,fog_red1,fog_green1,fog_blue1,fog_minclip1,fog_maxclip1,fog_red2,fog_green2,fog_blue2,fog_minclip2,fog_maxclip2,fog_red3,fog_green3,fog_blue3,fog_minclip3,fog_maxclip3,fog_red4,fog_green4,fog_blue4,fog_minclip4,fog_maxclip4,fog_density,flag_needed,canbind,cancombat,canlevitate,castoutdoor,hotzone,insttype,shutdowndelay,peqzone,bypass_expansion_check,suspendbuffs,rain_chance1,rain_chance2,rain_chance3,rain_chance4,rain_duration1,rain_duration2,rain_duration3,rain_duration4,snow_chance1,snow_chance2,snow_chance3,snow_chance4,snow_duration1,snow_duration2,snow_duration3,snow_duration4,gravity,type,skylock,fast_regen_hp,fast_regen_mana,fast_regen_endurance,npc_max_aggro_dist,npc_update_range,client_update_range,max_movement_update_range,underworld_teleport_index,lava_damage,min_lava_damage,idle_when_empty,seconds_before_idle,shard_at_player_count) SELECT `zoneidnumber`, 52, `short_name`, `long_name`, `min_status`, `map_file_name`, `note`, `min_expansion`, `max_expansion`, `content_flags`, `content_flags_disabled`, `expansion`, `file_name`, `safe_x`, `safe_y`, `safe_z`, `safe_heading`, `graveyard_id`, `min_level`, `max_level`, `timezone`, `maxclients`, `ruleset`, `underworld`, `minclip`, `maxclip`, `fog_minclip`, `fog_maxclip`, `fog_blue`, `fog_red`, `fog_green`, `sky`, `ztype`, `zone_exp_multiplier`, `walkspeed`, `time_type`, `fog_red1`, `fog_green1`, `fog_blue1`, `fog_minclip1`, `fog_maxclip1`, `fog_red2`, `fog_green2`, `fog_blue2`, `fog_minclip2`, `fog_maxclip2`, `fog_red3`, `fog_green3`, `fog_blue3`, `fog_minclip3`, `fog_maxclip3`, `fog_red4`, `fog_green4`, `fog_blue4`, `fog_minclip4`, `fog_maxclip4`, `fog_density`, `flag_needed`, `canbind`, `cancombat`, `canlevitate`, `castoutdoor`, `hotzone`, `insttype`, `shutdowndelay`, `peqzone`, `bypass_expansion_check`, `suspendbuffs`, `rain_chance1`, `rain_chance2`, `rain_chance3`, `rain_chance4`, `rain_duration1`, `rain_duration2`, `rain_duration3`, `rain_duration4`, `snow_chance1`, `snow_chance2`, `snow_chance3`, `snow_chance4`, `snow_duration1`, `snow_duration2`, `snow_duration3`, `snow_duration4`, `gravity`, `type`, `skylock`, `fast_regen_hp`, `fast_regen_mana`, `fast_regen_endurance`, `npc_max_aggro_dist`, `npc_update_range`, `client_update_range`, `max_movement_update_range`, `underworld_teleport_index`, `lava_damage`, `min_lava_damage`, `idle_when_empty`, `seconds_before_idle`, `shard_at_player_count` FROM `zone` WHERE `short_name` = 'discord' AND `version` = 0;
 
@@ -11195,10 +11195,10 @@ DELETE FROM `zone` WHERE `short_name` = 'oceangreenhills' AND `version` = 51;
 INSERT INTO `zone` (zoneidnumber,version,short_name,long_name,min_status,map_file_name,note,min_expansion,max_expansion,content_flags,content_flags_disabled,expansion,file_name,safe_x,safe_y,safe_z,safe_heading,graveyard_id,min_level,max_level,timezone,maxclients,ruleset,underworld,minclip,maxclip,fog_minclip,fog_maxclip,fog_blue,fog_red,fog_green,sky,ztype,zone_exp_multiplier,walkspeed,time_type,fog_red1,fog_green1,fog_blue1,fog_minclip1,fog_maxclip1,fog_red2,fog_green2,fog_blue2,fog_minclip2,fog_maxclip2,fog_red3,fog_green3,fog_blue3,fog_minclip3,fog_maxclip3,fog_red4,fog_green4,fog_blue4,fog_minclip4,fog_maxclip4,fog_density,flag_needed,canbind,cancombat,canlevitate,castoutdoor,hotzone,insttype,shutdowndelay,peqzone,bypass_expansion_check,suspendbuffs,rain_chance1,rain_chance2,rain_chance3,rain_chance4,rain_duration1,rain_duration2,rain_duration3,rain_duration4,snow_chance1,snow_chance2,snow_chance3,snow_chance4,snow_duration1,snow_duration2,snow_duration3,snow_duration4,gravity,type,skylock,fast_regen_hp,fast_regen_mana,fast_regen_endurance,npc_max_aggro_dist,npc_update_range,client_update_range,max_movement_update_range,underworld_teleport_index,lava_damage,min_lava_damage,idle_when_empty,seconds_before_idle,shard_at_player_count) SELECT `zoneidnumber`, 51, `short_name`, `long_name`, `min_status`, `map_file_name`, `note`, `min_expansion`, `max_expansion`, `content_flags`, `content_flags_disabled`, `expansion`, `file_name`, `safe_x`, `safe_y`, `safe_z`, `safe_heading`, `graveyard_id`, `min_level`, `max_level`, `timezone`, `maxclients`, `ruleset`, `underworld`, `minclip`, `maxclip`, `fog_minclip`, `fog_maxclip`, `fog_blue`, `fog_red`, `fog_green`, `sky`, `ztype`, `zone_exp_multiplier`, `walkspeed`, `time_type`, `fog_red1`, `fog_green1`, `fog_blue1`, `fog_minclip1`, `fog_maxclip1`, `fog_red2`, `fog_green2`, `fog_blue2`, `fog_minclip2`, `fog_maxclip2`, `fog_red3`, `fog_green3`, `fog_blue3`, `fog_minclip3`, `fog_maxclip3`, `fog_red4`, `fog_green4`, `fog_blue4`, `fog_minclip4`, `fog_maxclip4`, `fog_density`, `flag_needed`, `canbind`, `cancombat`, `canlevitate`, `castoutdoor`, `hotzone`, `insttype`, `shutdowndelay`, `peqzone`, `bypass_expansion_check`, `suspendbuffs`, `rain_chance1`, `rain_chance2`, `rain_chance3`, `rain_chance4`, `rain_duration1`, `rain_duration2`, `rain_duration3`, `rain_duration4`, `snow_chance1`, `snow_chance2`, `snow_chance3`, `snow_chance4`, `snow_duration1`, `snow_duration2`, `snow_duration3`, `snow_duration4`, `gravity`, `type`, `skylock`, `fast_regen_hp`, `fast_regen_mana`, `fast_regen_endurance`, `npc_max_aggro_dist`, `npc_update_range`, `client_update_range`, `max_movement_update_range`, `underworld_teleport_index`, `lava_damage`, `min_lava_damage`, `idle_when_empty`, `seconds_before_idle`, `shard_at_player_count` FROM `zone` WHERE `short_name` = 'oceangreenhills' AND `version` = 0;
 
 DELETE FROM `zone` WHERE `short_name` = 'korascian' AND `version` = 51;
-")SODP2111"
+)SODP2111"
 		R"SODP2111(
 INSERT INTO `zone` (zoneidnumber,version,short_name,long_name,min_status,map_file_name,note,min_expansion,max_expansion,content_flags,content_flags_disabled,expansion,file_name,safe_x,safe_y,safe_z,safe_heading,graveyard_id,min_level,max_level,timezone,maxclients,ruleset,underworld,minclip,maxclip,fog_minclip,fog_maxclip,fog_blue,fog_red,fog_green,sky,ztype,zone_exp_multiplier,walkspeed,time_type,fog_red1,fog_green1,fog_blue1,fog_minclip1,fog_maxclip1,fog_red2,fog_green2,fog_blue2,fog_minclip2,fog_maxclip2,fog_red3,fog_green3,fog_blue3,fog_minclip3,fog_maxclip3,fog_red4,fog_green4,fog_blue4,fog_minclip4,fog_maxclip4,fog_density,flag_needed,canbind,cancombat,canlevitate,castoutdoor,hotzone,insttype,shutdowndelay,peqzone,bypass_expansion_check,suspendbuffs,rain_chance1,rain_chance2,rain_chance3,rain_chance4,rain_duration1,rain_duration2,rain_duration3,rain_duration4,snow_chance1,snow_chance2,snow_chance3,snow_chance4,snow_duration1,snow_duration2,snow_duration3,snow_duration4,gravity,type,skylock,fast_regen_hp,fast_regen_mana,fast_regen_endurance,npc_max_aggro_dist,npc_update_range,client_update_range,max_movement_update_range,underworld_teleport_index,lava_damage,min_lava_damage,idle_when_empty,seconds_before_idle,shard_at_player_count) SELECT `zoneidnumber`, 51, `short_name`, `long_name`, `min_status`, `map_file_name`, `note`, `min_expansion`, `max_expansion`, `content_flags`, `content_flags_disabled`, `expansion`, `file_name`, `safe_x`, `safe_y`, `safe_z`, `safe_heading`, `graveyard_id`, `min_level`, `max_level`, `timezone`, `maxclients`, `ruleset`, `underworld`, `minclip`, `maxclip`, `fog_minclip`, `fog_maxclip`, `fog_blue`, `fog_red`, `fog_green`, `sky`, `ztype`, `zone_exp_multiplier`, `walkspeed`, `time_type`, `fog_red1`, `fog_green1`, `fog_blue1`, `fog_minclip1`, `fog_maxclip1`, `fog_red2`, `fog_green2`, `fog_blue2`, `fog_minclip2`, `fog_maxclip2`, `fog_red3`, `fog_green3`, `fog_blue3`, `fog_minclip3`, `fog_maxclip3`, `fog_red4`, `fog_green4`, `fog_blue4`, `fog_minclip4`, `fog_maxclip4`, `fog_density`, `flag_needed`, `canbind`, `cancombat`, `canlevitate`, `castoutdoor`, `hotzone`, `insttype`, `shutdowndelay`, `peqzone`, `bypass_expansion_check`, `suspendbuffs`, `rain_chance1`, `rain_chance2`, `rain_chance3`, `rain_chance4`, `rain_duration1`, `rain_duration2`, `rain_duration3`, `rain_duration4`, `snow_chance1`, `snow_chance2`, `snow_chance3`, `snow_chance4`, `snow_duration1`, `snow_duration2`, `snow_duration3`, `snow_duration4`, `gravity`, `type`, `skylock`, `fast_regen_hp`, `fast_regen_mana`, `fast_regen_endurance`, `npc_max_aggro_dist`, `npc_update_range`, `client_update_range`, `max_movement_update_range`, `underworld_teleport_index`, `lava_damage`, `min_lava_damage`, `idle_when_empty`, `seconds_before_idle`, `shard_at_player_count` FROM `zone` WHERE `short_name` = 'korascian' AND `version` = 0;
-")SODP2111",
+)SODP2111",
 		.content_schema_update = false,
 	},
 
@@ -17304,7 +17304,7 @@ INSERT INTO `task_activities` (taskid,activityid,req_activity_id,step,activityty
 -- Faction rewards, matching the v110 vendor convention (faction 1222:
 -- group tasks +150).
 UPDATE `tasks` SET `faction_reward` = 1222, `faction_amount` = 150 WHERE `id` IN (303080,303081);
-")SODOG143",
+)SODOG143",
 		.content_schema_update = false,
 	},
 
@@ -17338,7 +17338,7 @@ UPDATE `tasks` SET `faction_reward` = 1222, `faction_amount` = 150 WHERE `id` IN
 
 UPDATE `tasks` SET `faction_reward` = 1223
 WHERE `id` IN (303010,303011,303012,303074,303075,303076);
-")SODKF144",
+)SODKF144",
 		.content_schema_update = false,
 	},
 
@@ -17425,7 +17425,7 @@ INSERT INTO `task_activities` (taskid,activityid,req_activity_id,step,activityty
 (303108,2,1,3,3,'a Severed Gnoll Finger',0,1,'a Severed Gnoll Finger','','17313','',0,0,0,0,0,0,0,'-1','0','oldblackburrow',-1,0,0),
 (303109,0,-1,1,2,'the enraged gnolls',0,12,'the enraged gnolls','468002|468004|468006|468007|468008|468010|468012|468017|468019|468021|468023|468024|468027|468028|468029|468030|468031|468032|468033|468034|468036|468037|468039|468041|468042|468045|468047|468050|468051|468052|468059|468060','','',0,0,0,0,0,0,0,'-1','0','oldblackburrow',-1,0,0),
 (303109,1,0,2,3,'a Wrext Mal Insignia',0,2,'a Wrext Mal Insignia','','17342','',0,0,0,0,0,0,0,'-1','0','oldblackburrow',-1,0,0),
-")SODTHEME145"
+)SODTHEME145"
  R"SODTHEME145(
 (303116,0,-1,1,4,'Captain Hiran Tillin',0,1,'Captain Hiran Tillin','466035','','',0,0,0,0,0,0,0,'-1','0','',-1,0,0),
 (303110,0,-1,1,3,'an Infected Animal Organ',0,5,'an Infected Animal Organ','','17283','',0,0,0,0,0,0,0,'-1','0','oceangreenhills',-1,0,0),
@@ -17516,7 +17516,7 @@ INSERT INTO `task_activities` (taskid,activityid,req_activity_id,step,activityty
 -- theme tasks raise Silla Herald (1223, +150, v144 convention).
 UPDATE `tasks` SET `faction_reward` = 1222, `faction_amount` = 150 WHERE `id` IN (303100,303101,303102,303103,303104,303105,303106,303107,303108,303109,303110,303111,303112,303113,303114,303115,303116,303117,303118,303119);
 UPDATE `tasks` SET `faction_reward` = 1223, `faction_amount` = 150 WHERE `id` IN (303120,303121,303122,303123,303124,303125,303126,303130,303131,303132,303133,303134,303135,303140,303141,303142,303143,303144,303145,303146);
-")SODTHEME145",
+)SODTHEME145",
 		.content_schema_update = false,
 	},
 
@@ -17661,7 +17661,7 @@ INSERT INTO sod_theme_rare_nt SELECT * FROM npc_types WHERE id = 466121;
 UPDATE sod_theme_rare_nt SET id = 1120002059, name = 'an_ebony_stalker', level = 79, hp = 140000, mana = 0, loottable_id = 1520008379, merchant_id = 0 WHERE id = 466121;
 INSERT INTO sod_theme_rare_nt SELECT * FROM npc_types WHERE id = 456150;
 UPDATE sod_theme_rare_nt SET id = 1120002060, name = 'Eliowie_Dawnheart', level = 80, hp = 150000, mana = 0, loottable_id = 1520008380, merchant_id = 0 WHERE id = 456150;
-")SODRARE146"
+)SODRARE146"
  R"SODRARE146(
 INSERT INTO sod_theme_rare_nt SELECT * FROM npc_types WHERE id = 456150;
 UPDATE sod_theme_rare_nt SET id = 1120002061, name = 'Groomb_Mystseer', level = 80, hp = 150000, mana = 0, loottable_id = 1520008381, merchant_id = 0 WHERE id = 456150;
@@ -17813,7 +17813,7 @@ INSERT INTO `lootdrop_entries` (`lootdrop_id`,`item_id`,`item_charges`,`equip_it
     (1520008380,17313,6,0,100,0,0,0,1,0,0,-1,-1);
 
 INSERT INTO `loottable` (`id`,`name`,`mincash`,`maxcash`,`avgcoin`,`done`) VALUES (1520008343,'sod_theme_hills_nightstalker',1000000,5000000,0,0);
-")SODRARE146"
+)SODRARE146"
  R"SODRARE146(
 INSERT INTO `lootdrop` (`id`,`name`) VALUES (1520008381,'sod_theme_hills_nightstalker_drop');
 INSERT INTO `loottable_entries` (`loottable_id`,`lootdrop_id`,`multiplier`,`droplimit`,`mindrop`,`probability`) VALUES (1520008343,1520008381,1,0,0,100);
@@ -17962,7 +17962,7 @@ INSERT INTO `lootdrop_entries` (`lootdrop_id`,`item_id`,`item_charges`,`equip_it
 
 INSERT INTO `loottable` (`id`,`name`,`mincash`,`maxcash`,`avgcoin`,`done`) VALUES (1520008361,'sod_theme_megrima',1000000,5000000,0,0);
 INSERT INTO `lootdrop` (`id`,`name`) VALUES (1520008399,'sod_theme_megrima_drop');
-")SODRARE146"
+)SODRARE146"
  R"SODRARE146(
 INSERT INTO `loottable_entries` (`loottable_id`,`lootdrop_id`,`multiplier`,`droplimit`,`mindrop`,`probability`) VALUES (1520008361,1520008399,1,0,0,100);
 INSERT INTO `lootdrop_entries` (`lootdrop_id`,`item_id`,`item_charges`,`equip_item`,`chance`,`disabled_chance`,`trivial_min_level`,`trivial_max_level`,`multiplier`,`npc_min_level`,`npc_max_level`,`min_expansion`,`max_expansion`) VALUES
@@ -18110,7 +18110,7 @@ INSERT INTO `lootdrop_entries` (`lootdrop_id`,`item_id`,`item_charges`,`equip_it
 
 INSERT INTO `loottable` (`id`,`name`,`mincash`,`maxcash`,`avgcoin`,`done`) VALUES (1520008379,'sod_theme_ebony_stalker',1000000,5000000,0,0);
 INSERT INTO `lootdrop` (`id`,`name`) VALUES (1520008417,'sod_theme_ebony_stalker_drop');
-")SODRARE146"
+)SODRARE146"
  R"SODRARE146(
 INSERT INTO `loottable_entries` (`loottable_id`,`lootdrop_id`,`multiplier`,`droplimit`,`mindrop`,`probability`) VALUES (1520008379,1520008417,1,0,0,100);
 INSERT INTO `lootdrop_entries` (`lootdrop_id`,`item_id`,`item_charges`,`equip_item`,`chance`,`disabled_chance`,`trivial_min_level`,`trivial_max_level`,`multiplier`,`npc_min_level`,`npc_max_level`,`min_expansion`,`max_expansion`) VALUES
@@ -18261,7 +18261,7 @@ INSERT INTO `spawnentry` (`spawngroupID`,`npcID`,`chance`) VALUES (1520008664,11
 INSERT INTO `spawn2` (`spawngroupID`,`zone`,`version`,`x`,`y`,`z`,`heading`,`respawntime`) VALUES (1520008664,'oldblackburrow',0,93,-314,47,0,3600);
 
 INSERT INTO `spawngroup` (`id`,`name`,`spawn_limit`,`dist`,`delay`,`mindelay`,`despawn`) VALUES (1520008665,'sod_theme_rare_garght',0,0,3600,1800,0);
-")SODRARE146"
+)SODRARE146"
  R"SODRARE146(
 INSERT INTO `spawnentry` (`spawngroupID`,`npcID`,`chance`) VALUES (1520008665,1120002015,100);
 INSERT INTO `spawn2` (`spawngroupID`,`zone`,`version`,`x`,`y`,`z`,`heading`,`respawntime`) VALUES (1520008665,'oldblackburrow',0,140,-225,47,0,3600);
@@ -18402,7 +18402,7 @@ INSERT INTO `spawngroup` (`id`,`name`,`spawn_limit`,`dist`,`delay`,`mindelay`,`d
 INSERT INTO `spawnentry` (`spawngroupID`,`npcID`,`chance`) VALUES (1520008699,1120002049,100);
 INSERT INTO `spawn2` (`spawngroupID`,`zone`,`version`,`x`,`y`,`z`,`heading`,`respawntime`) VALUES (1520008699,'bertoxtemple',0,66,26,2,0,3600);
 
-")SODRARE146"
+)SODRARE146"
  R"SODRARE146(
 INSERT INTO `spawngroup` (`id`,`name`,`spawn_limit`,`dist`,`delay`,`mindelay`,`despawn`) VALUES (1520008700,'sod_theme_rare_steward',0,0,3600,1800,0);
 INSERT INTO `spawnentry` (`spawngroupID`,`npcID`,`chance`) VALUES (1520008700,1120002050,100);
@@ -18495,7 +18495,7 @@ INSERT INTO `spawn2` (`spawngroupID`,`zone`,`version`,`x`,`y`,`z`,`heading`,`res
 INSERT INTO `spawngroup` (`id`,`name`,`spawn_limit`,`dist`,`delay`,`mindelay`,`despawn`) VALUES (1520008722,'sod_theme_rare_kravek',0,0,3600,1800,0);
 INSERT INTO `spawnentry` (`spawngroupID`,`npcID`,`chance`) VALUES (1520008722,1120002072,100);
 INSERT INTO `spawn2` (`spawngroupID`,`zone`,`version`,`x`,`y`,`z`,`heading`,`respawntime`) VALUES (1520008722,'oldcommons',0,2664,368,-20,0,3600);
-")SODRARE146",
+)SODRARE146",
 		.content_schema_update = false,
 	},
 
@@ -18649,7 +18649,7 @@ UPDATE sod_kunark_rare_nt SET id = 1120002105, name = 'Lieutenant_Tenante', leve
 INSERT INTO sod_kunark_rare_nt SELECT * FROM npc_types WHERE id = 453038;
 UPDATE sod_kunark_rare_nt SET id = 1120002106, name = 'Louko', level = 85, hp = 250000, mana = 0, loottable_id = 1520008426, merchant_id = 0, faction_amount = -25 WHERE id = 453038;
 INSERT INTO sod_kunark_rare_nt SELECT * FROM npc_types WHERE id = 452251;
-")SODKUN147"
+)SODKUN147"
  R"SODKUN147(
 UPDATE sod_kunark_rare_nt SET id = 1120002107, name = 'Mordid', level = 82, hp = 200000, mana = 0, loottable_id = 1520008427, merchant_id = 0, faction_amount = -25 WHERE id = 452251;
 INSERT INTO sod_kunark_rare_nt SELECT * FROM npc_types WHERE id = 453003;
@@ -18797,7 +18797,7 @@ INSERT INTO `loottable` (`id`,`name`,`mincash`,`maxcash`,`avgcoin`,`done`) VALUE
 INSERT INTO `lootdrop` (`id`,`name`) VALUES (1520008448,'sod_kunark_keymaster_drop');
 INSERT INTO `loottable_entries` (`loottable_id`,`lootdrop_id`,`multiplier`,`droplimit`,`mindrop`,`probability`) VALUES (1520008409,1520008448,1,0,0,100);
 INSERT INTO `lootdrop_entries` (`lootdrop_id`,`item_id`,`item_charges`,`equip_item`,`chance`,`disabled_chance`,`trivial_min_level`,`trivial_max_level`,`multiplier`,`npc_min_level`,`npc_max_level`,`min_expansion`,`max_expansion`) VALUES
-")SODKUN147"
+)SODKUN147"
  R"SODKUN147(
     (1520008448,105737,1,0,25,0,0,0,1,0,0,-1,-1),
     (1520008448,105755,1,0,25,0,0,0,1,0,0,-1,-1),
@@ -18949,7 +18949,7 @@ INSERT INTO `lootdrop_entries` (`lootdrop_id`,`item_id`,`item_charges`,`equip_it
 INSERT INTO `loottable` (`id`,`name`,`mincash`,`maxcash`,`avgcoin`,`done`) VALUES (1520008427,'sod_kunark_mordid',1000000,5000000,0,0);
 INSERT INTO `lootdrop` (`id`,`name`) VALUES (1520008466,'sod_kunark_mordid_drop');
 INSERT INTO `loottable_entries` (`loottable_id`,`lootdrop_id`,`multiplier`,`droplimit`,`mindrop`,`probability`) VALUES (1520008427,1520008466,1,0,0,100);
-")SODKUN147"
+)SODKUN147"
  R"SODKUN147(
 INSERT INTO `lootdrop_entries` (`lootdrop_id`,`item_id`,`item_charges`,`equip_item`,`chance`,`disabled_chance`,`trivial_min_level`,`trivial_max_level`,`multiplier`,`npc_min_level`,`npc_max_level`,`min_expansion`,`max_expansion`) VALUES
     (1520008466,105720,1,0,25,0,0,0,1,0,0,-1,-1),
@@ -19091,7 +19091,7 @@ INSERT INTO `spawnentry` (`spawngroupID`,`npcID`,`chance`) VALUES (1520008751,11
 INSERT INTO `spawn2` (`spawngroupID`,`zone`,`version`,`x`,`y`,`z`,`heading`,`respawntime`) VALUES (1520008751,'oldkurn',0,-316.38,-197.62,140.0,0,3600);
 
 INSERT INTO `spawngroup` (`id`,`name`,`spawn_limit`,`dist`,`delay`,`mindelay`,`despawn`) VALUES (1520008752,'sod_kunark_rare_cosensal',0,0,3600,1800,0);
-")SODKUN147"
+)SODKUN147"
  R"SODKUN147(
 INSERT INTO `spawnentry` (`spawngroupID`,`npcID`,`chance`) VALUES (1520008752,1120002102,100);
 INSERT INTO `spawn2` (`spawngroupID`,`zone`,`version`,`x`,`y`,`z`,`heading`,`respawntime`) VALUES (1520008752,'oldkurn',0,-285.12,-65.38,152.88,0,3600);
@@ -19123,7 +19123,7 @@ INSERT INTO `spawn2` (`spawngroupID`,`zone`,`version`,`x`,`y`,`z`,`heading`,`res
 INSERT INTO `spawngroup` (`id`,`name`,`spawn_limit`,`dist`,`delay`,`mindelay`,`despawn`) VALUES (1520008759,'sod_kunark_rare_hilith',0,0,3600,1800,0);
 INSERT INTO `spawnentry` (`spawngroupID`,`npcID`,`chance`) VALUES (1520008759,1120002109,100);
 INSERT INTO `spawn2` (`spawngroupID`,`zone`,`version`,`x`,`y`,`z`,`heading`,`respawntime`) VALUES (1520008759,'oldkurn',0,86.5,96.75,2.88,0,3600);
-")SODKUN147",
+)SODKUN147",
 		.content_schema_update = false,
 	},
 
@@ -19337,7 +19337,7 @@ INSERT INTO `task_activities` (taskid,activityid,req_activity_id,step,activityty
 (303153,0,-1,1,4,'Muskorr Agitarr',0,1,'Muskorr Agitarr','475046','','',0,0,0,0,0,0,0,'-1','0','',-1,0,0),
 (303153,1,0,2,2,'the Shivstalker thieves',0,5,'the Shivstalker thieves','475050','','',0,0,0,0,0,0,0,'-1','0','toskirakk',-1,0,0),
 (303153,2,1,3,2,'Basta Shivstalker',0,1,'Basta Shivstalker','475053','','',0,0,0,0,0,0,0,'-1','0','toskirakk',-1,0,0),
-")SODRAT150"
+)SODRAT150"
  R"SODRAT150(
 (303153,3,2,4,3,'Basta Shivstalker''s Head',0,1,'Basta Shivstalker''s Head','','88350','',0,0,0,0,0,0,0,'-1','0','toskirakk',-1,0,0),
 (303153,4,3,5,4,'Muskorr Agitarr',0,1,'Muskorr Agitarr','475046','','',0,0,0,0,0,0,0,'-1','0','',-1,0,0),
@@ -19458,7 +19458,7 @@ UPDATE sod_rathe_rare_nt SET id = 1120002131, name = 'Gradd_the_Mutineer', level
 INSERT INTO sod_rathe_rare_nt SELECT * FROM npc_types WHERE id = 476102;
 UPDATE sod_rathe_rare_nt SET id = 1120002132, name = 'Mauk_Peskysnout', level = 86, hp = 280000, mana = 0, loottable_id = 1520008452, merchant_id = 0, faction_amount = -25 WHERE id = 476102;
 INSERT INTO sod_rathe_rare_nt SELECT * FROM npc_types WHERE id = 476078;
-")SODRAT150"
+)SODRAT150"
  R"SODRAT150(
 UPDATE sod_rathe_rare_nt SET id = 1120002133, name = 'Perd_Kraknakk', level = 86, hp = 280000, mana = 0, loottable_id = 1520008453, merchant_id = 0, faction_amount = -25 WHERE id = 476078;
 INSERT INTO sod_rathe_rare_nt SELECT * FROM npc_types WHERE id = 476103;
@@ -19605,7 +19605,7 @@ INSERT INTO `lootdrop_entries` (`lootdrop_id`,`item_id`,`item_charges`,`equip_it
 
 INSERT INTO `loottable` (`id`,`name`,`mincash`,`maxcash`,`avgcoin`,`done`) VALUES (1520008444,'sod_rathe_auridont',1000000,5000000,0,0);
 INSERT INTO `lootdrop` (`id`,`name`) VALUES (1520008483,'sod_rathe_auridont_drop');
-")SODRAT150"
+)SODRAT150"
  R"SODRAT150(
 INSERT INTO `loottable_entries` (`loottable_id`,`lootdrop_id`,`multiplier`,`droplimit`,`mindrop`,`probability`) VALUES (1520008444,1520008483,1,0,0,100);
 INSERT INTO `lootdrop_entries` (`lootdrop_id`,`item_id`,`item_charges`,`equip_item`,`chance`,`disabled_chance`,`trivial_min_level`,`trivial_max_level`,`multiplier`,`npc_min_level`,`npc_max_level`,`min_expansion`,`max_expansion`) VALUES
@@ -19759,7 +19759,7 @@ INSERT INTO `lootdrop_entries` (`lootdrop_id`,`item_id`,`item_charges`,`equip_it
     (1520008500,105819,1,0,25,0,0,0,1,0,0,-1,-1),
     (1520008500,105852,1,0,25,0,0,0,1,0,0,-1,-1),
     (1520008500,106319,1,0,25,0,0,0,1,0,0,-1,-1),
-")SODRAT150"
+)SODRAT150"
  R"SODRAT150(
     (1520008500,106352,1,0,15,0,0,0,1,0,0,-1,-1);
 
@@ -19901,10 +19901,10 @@ INSERT INTO `spawn2` (`spawngroupID`,`zone`,`version`,`x`,`y`,`z`,`heading`,`res
 
 INSERT INTO `spawngroup` (`id`,`name`,`spawn_limit`,`dist`,`delay`,`mindelay`,`despawn`) VALUES (1520008792,'sod_rathe_rare_yozan',0,0,3600,1800,0);
 INSERT INTO `spawnentry` (`spawngroupID`,`npcID`,`chance`) VALUES (1520008792,1120002142,100);
-")SODRAT150"
+)SODRAT150"
  R"SODRAT150(
 INSERT INTO `spawn2` (`spawngroupID`,`zone`,`version`,`x`,`y`,`z`,`heading`,`respawntime`) VALUES (1520008792,'rathechamber',0,-575.5,886.0,-38.25,0,3600);
-")SODRAT150",
+)SODRAT150",
 		.content_schema_update = false,
 	},
 
@@ -20138,7 +20138,7 @@ INSERT INTO `tasks` (id,type,duration,duration_code,title,description,reward_tex
 (303183,0,0,0,'Acolytes of Despair','General Azerug has named the despair''s source: Acolytes Grindrik and Torsk and their castigator retinue. Remove them.','Experience','',0,250000,0,0,0,75,0,0,0,0,0,0,'',0,0,0,0,0,-1,0,1),
 (303184,0,0,0,'Favors of the Hopelost','Citykeeper Nardic tends the hopeless. Carry word to the lookouts and bring back two babel crystal shards from the castigators as proof the roads are watched.','Experience','',0,250000,0,0,0,75,0,0,0,0,0,0,'',0,0,0,0,0,-1,0,1),
 (303185,0,0,0,'A Limit to Despair','Nardic wants no ceremony, only confirmation. Speak with Givrund and Ziven, then tell Nardic the city still has hands to save it.','Experience','',0,250000,0,0,0,75,0,0,0,0,0,0,'',0,0,0,0,0,-1,0,1),
-")SODDIS152"
+)SODDIS152"
  R"SODDIS152(
 (303186,0,0,0,'The Missing Chalice','Givrund''s devotional chalice went to the acolytes'' altar. Acolyte Torsk carried it -- reclaim it from him and return.','Experience','',0,250000,0,0,0,75,0,0,0,0,0,0,'',0,0,0,0,0,-1,0,1);
 
@@ -20260,7 +20260,7 @@ DROP TEMPORARY TABLE sod_disco_rare_nt;
 
 INSERT INTO `loottable` (`id`,`name`,`mincash`,`maxcash`,`avgcoin`,`done`) VALUES (1520008463,'sod_disco_chaxyl',1000000,5000000,0,0);
 INSERT INTO `lootdrop` (`id`,`name`) VALUES (1520008503,'sod_disco_chaxyl_drop');
-")SODDIS152"
+)SODDIS152"
  R"SODDIS152(
 INSERT INTO `loottable_entries` (`loottable_id`,`lootdrop_id`,`multiplier`,`droplimit`,`mindrop`,`probability`) VALUES (1520008463,1520008503,1,0,0,100);
 INSERT INTO `lootdrop_entries` (`lootdrop_id`,`item_id`,`item_charges`,`equip_item`,`chance`,`disabled_chance`,`trivial_min_level`,`trivial_max_level`,`multiplier`,`npc_min_level`,`npc_max_level`,`min_expansion`,`max_expansion`) VALUES
@@ -20414,7 +20414,7 @@ INSERT INTO `lootdrop_entries` (`lootdrop_id`,`item_id`,`item_charges`,`equip_it
     (1520008520,105903,1,0,25,0,0,0,1,0,0,-1,-1),
     (1520008520,105941,1,0,25,0,0,0,1,0,0,-1,-1),
     (1520008520,106403,1,0,25,0,0,0,1,0,0,-1,-1),
-")SODDIS152"
+)SODDIS152"
  R"SODDIS152(
     (1520008520,106441,1,0,15,0,0,0,1,0,0,-1,-1);
 
@@ -20561,7 +20561,7 @@ INSERT INTO `spawngroup` (`id`,`name`,`spawn_limit`,`dist`,`delay`,`mindelay`,`d
 INSERT INTO `spawnentry` (`spawngroupID`,`npcID`,`chance`) VALUES (1520008805,1120002155,100);
 INSERT INTO `spawn2` (`spawngroupID`,`zone`,`version`,`x`,`y`,`z`,`heading`,`respawntime`) VALUES (1520008805,'olddranik',0,964.0,1056.0,90.0,0,3600);
 
-")SODDIS152"
+)SODDIS152"
  R"SODDIS152(
 INSERT INTO `spawngroup` (`id`,`name`,`spawn_limit`,`dist`,`delay`,`mindelay`,`despawn`) VALUES (1520008806,'sod_disco_rare_ulkat',0,0,3600,1800,0);
 INSERT INTO `spawnentry` (`spawngroupID`,`npcID`,`chance`) VALUES (1520008806,1120002156,100);
@@ -20642,7 +20642,7 @@ INSERT INTO `lootdrop_entries` (`lootdrop_id`,`item_id`,`item_charges`,`equip_it
     (1520008535,106405,1,0,25,0,0,0,1,0,0,-1,-1),
     (1520008535,106436,1,0,15,0,0,0,1,0,0,-1,-1);
 INSERT INTO `loottable_entries` (`loottable_id`,`lootdrop_id`,`multiplier`,`droplimit`,`mindrop`,`probability`) VALUES (94826,1520008535,1,0,0,100);
-")SODDIS152",
+)SODDIS152",
 		.content_schema_update = false,
 	},
 	// ------------------------------------------------------------------------------------------------
@@ -20736,25 +20736,25 @@ INSERT INTO `task_activities`
    `min_x`,`min_y`,`min_z`,`max_x`,`max_y`,`max_z`,
    `skill_list`,`spell_list`,`zones`,`zone_version`,`optional`,`list_group`)
 VALUES
-  (505762,0,-1,1,3,'',0,1,'Loot 1 Shiliskin Tentacle Cluster from the depths of Illsalin','','88002','','',0,0,0,0,0,0,0,'0','',-1,0,0),
-  (505762,1,-1,2,3,'',0,1,'Loot 1 Drachnid Silk Gland from the drachnids of the Creep and the Hive','','88003','','',0,0,0,0,0,0,0,'0','',-1,0,0),
-  (505762,2,-1,3,3,'',0,2,'Loot 2 Chopping Swords from the Deep orcs of Stoneroot Falls','','88004','','',0,0,0,0,0,0,0,'0','',-1,0,0),
-  (505762,3,-1,4,1,'',0,1,'Deliver 1 Shiliskin Tentacle Cluster to Treddlehoop','365284','88002','','',0,0,0,0,0,0,0,'0','',-1,0,0),
-  (505762,4,-1,5,1,'',0,1,'Deliver 1 Drachnid Silk Gland to Treddlehoop','365284','88003','','',0,0,0,0,0,0,0,'0','',-1,0,0),
-  (505762,5,-1,6,1,'',0,2,'Deliver 2 Chopping Swords to Treddlehoop','365284','88004','','',0,0,0,0,0,0,0,'0','',-1,0,0),
-  (505763,0,-1,1,4,'',0,1,'Find Merchant Model CGXIV at the camp of Expedition 328 and buy a Spell Research Kit','365276','','','',0,0,0,0,0,0,0,'0','',-1,0,0),
-  (505763,1,-1,2,4,'',0,1,'Report back to Bellfast','365286','','','',0,0,0,0,0,0,0,'0','',-1,0,0),
-  (505763,2,-1,3,6,'',0,1,'Use spell research to combine the first three Mechanoinstruction Scraps into a Tattered Mechanoinstruction','','33296','','',0,0,0,0,0,0,0,'0','',-1,0,0),
-  (505763,3,-1,3,1,'',0,1,'Deliver the Tattered Mechanoinstruction to Bellfast for the second page of Scrindite''s manual','365286','33296','','',0,0,0,0,0,0,0,'0','',-1,0,0),
-  (505763,4,-1,4,6,'',0,1,'Use spell research to combine the next four Mechanoinstruction Scraps into a Tattered Mechanoinstruction','','33297','','',0,0,0,0,0,0,0,'0','',-1,0,0),
-  (505763,5,-1,4,1,'',0,1,'Deliver the Tattered Mechanoinstruction to Bellfast for the third page of Scrindite''s manual','365286','33297','','',0,0,0,0,0,0,0,'0','',-1,0,0),
-  (505763,6,-1,5,6,'',0,1,'Use spell research to combine the last three Mechanoinstruction Scraps into a Tattered Mechanoinstruction','','33298','','',0,0,0,0,0,0,0,'0','',-1,0,0),
-  (505763,7,-1,5,1,'',0,1,'Deliver the Tattered Mechanoinstruction to Bellfast for the fourth page of Scrindite''s manual','365286','33298','','',0,0,0,0,0,0,0,'0','',-1,0,0),
-  (505763,8,-1,6,3,'',0,5,'Loot 5 Clockwork Pinion Gears','','32684','','',0,0,0,0,0,0,0,'0','',-1,0,0),
-  (505763,9,-1,7,3,'',0,2,'Loot 2 Clockwork Gears','','32683','','',0,0,0,0,0,0,0,'0','',-1,0,0),
-  (505763,10,-1,8,1,'',0,5,'Deliver 5 Clockwork Pinion Gears to Bellfast','365286','32684','','',0,0,0,0,0,0,0,'0','',-1,0,0),
-  (505763,11,-1,8,1,'',0,2,'Deliver 2 Clockwork Gears to Bellfast for the fifth page of Scrindite''s manual','365286','32683','','',0,0,0,0,0,0,0,'0','',-1,0,0),
-  (505763,12,-1,9,6,'',0,1,'Combine Scrindite''s five Manual Pages with spell research into the finished Mechanoinstruction Manual','','33295','','',0,0,0,0,0,0,0,'0','',-1,0,0);
+  (505762,0,-1,1,3,'',0,1,'Loot 1 Shiliskin Tentacle Cluster from the depths of Illsalin','','88002','',0,0,0,0,0,0,0,'0','','',-1,0,0),
+  (505762,1,-1,2,3,'',0,1,'Loot 1 Drachnid Silk Gland from the drachnids of the Creep and the Hive','','88003','',0,0,0,0,0,0,0,'0','','',-1,0,0),
+  (505762,2,-1,3,3,'',0,2,'Loot 2 Chopping Swords from the Deep orcs of Stoneroot Falls','','88004','',0,0,0,0,0,0,0,'0','','',-1,0,0),
+  (505762,3,-1,4,1,'',0,1,'Deliver 1 Shiliskin Tentacle Cluster to Treddlehoop','365284','88002','',0,0,0,0,0,0,0,'0','','',-1,0,0),
+  (505762,4,-1,5,1,'',0,1,'Deliver 1 Drachnid Silk Gland to Treddlehoop','365284','88003','',0,0,0,0,0,0,0,'0','','',-1,0,0),
+  (505762,5,-1,6,1,'',0,2,'Deliver 2 Chopping Swords to Treddlehoop','365284','88004','',0,0,0,0,0,0,0,'0','','',-1,0,0),
+  (505763,0,-1,1,4,'',0,1,'Find Merchant Model CGXIV at the camp of Expedition 328 and buy a Spell Research Kit','365276','','',0,0,0,0,0,0,0,'0','','',-1,0,0),
+  (505763,1,-1,2,4,'',0,1,'Report back to Bellfast','365286','','',0,0,0,0,0,0,0,'0','','',-1,0,0),
+  (505763,2,-1,3,6,'',0,1,'Use spell research to combine the first three Mechanoinstruction Scraps into a Tattered Mechanoinstruction','','33296','',0,0,0,0,0,0,0,'0','','',-1,0,0),
+  (505763,3,-1,3,1,'',0,1,'Deliver the Tattered Mechanoinstruction to Bellfast for the second page of Scrindite''s manual','365286','33296','',0,0,0,0,0,0,0,'0','','',-1,0,0),
+  (505763,4,-1,4,6,'',0,1,'Use spell research to combine the next four Mechanoinstruction Scraps into a Tattered Mechanoinstruction','','33297','',0,0,0,0,0,0,0,'0','','',-1,0,0),
+  (505763,5,-1,4,1,'',0,1,'Deliver the Tattered Mechanoinstruction to Bellfast for the third page of Scrindite''s manual','365286','33297','',0,0,0,0,0,0,0,'0','','',-1,0,0),
+  (505763,6,-1,5,6,'',0,1,'Use spell research to combine the last three Mechanoinstruction Scraps into a Tattered Mechanoinstruction','','33298','',0,0,0,0,0,0,0,'0','','',-1,0,0),
+  (505763,7,-1,5,1,'',0,1,'Deliver the Tattered Mechanoinstruction to Bellfast for the fourth page of Scrindite''s manual','365286','33298','',0,0,0,0,0,0,0,'0','','',-1,0,0),
+  (505763,8,-1,6,3,'',0,5,'Loot 5 Clockwork Pinion Gears','','32684','',0,0,0,0,0,0,0,'0','','',-1,0,0),
+  (505763,9,-1,7,3,'',0,2,'Loot 2 Clockwork Gears','','32683','',0,0,0,0,0,0,0,'0','','',-1,0,0),
+  (505763,10,-1,8,1,'',0,5,'Deliver 5 Clockwork Pinion Gears to Bellfast','365286','32684','',0,0,0,0,0,0,0,'0','','',-1,0,0),
+  (505763,11,-1,8,1,'',0,2,'Deliver 2 Clockwork Gears to Bellfast for the fifth page of Scrindite''s manual','365286','32683','',0,0,0,0,0,0,0,'0','','',-1,0,0),
+  (505763,12,-1,9,6,'',0,1,'Combine Scrindite''s five Manual Pages with spell research into the finished Mechanoinstruction Manual','','33295','',0,0,0,0,0,0,0,'0','','',-1,0,0);
 
 DELETE FROM `tradeskill_recipe_entries` WHERE `recipe_id` IN (938046, 938047);
 
@@ -41712,7 +41712,7 @@ ON DUPLICATE KEY UPDATE value=VALUES(value),npc_value=VALUES(npc_value),temp=VAL
 INSERT INTO npc_faction_entries (npc_faction_id,faction_id,value,npc_value,temp) VALUES
 (30398002,1111,-20,0,0)
 ON DUPLICATE KEY UPDATE value=VALUES(value),npc_value=VALUES(npc_value),temp=VALUES(temp);
---2011-revised archived Mines guide: Scar drops three separate shield copies.
+-- 2011-revised archived Mines guide: Scar drops three separate shield copies.
 UPDATE lootdrop_entries SET multiplier=3 WHERE lootdrop_id=120970 AND item_id=85744;
 COMMIT;
 )ROF302C",
