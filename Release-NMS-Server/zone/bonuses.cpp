@@ -26,6 +26,9 @@
 #include "entity.h"
 #include "mob.h"
 #include "nms_vault.h"
+#include "dynamic_items.h"
+#include "nms_paragon.h"
+#include "nms_chronal_tribute.h"
 
 #include "bot.h"
 
@@ -71,6 +74,7 @@ void NPC::CalcBonuses()
 void Client::CalcBonuses()
 {
 	memset(&itembonuses, 0, sizeof(StatBonuses));
+	dynamic_item_bonuses = {};
 	// NMS: a shroud form is its own creature. The character's real gear must not
 	// lend it stats, focus or weapon procs -- only the form's own AAs (below) and
 	// spells. Skipping the item pass is what stops a level-25 cake from hitting
@@ -78,6 +82,10 @@ void Client::CalcBonuses()
 	if (!m_shrouded) {
 		CalcItemBonuses(&itembonuses);
 		CalcNMSVaultLockerBonuses(&itembonuses);
+		CheckArmorSetBonuses(&itembonuses); // before ApplySkillBonuses: set bonuses can add dynamic affixes
+		DynamicItemsManager::CapBonuses(dynamic_item_bonuses);
+		DynamicItemsManager::ApplySkillBonuses(dynamic_item_bonuses, &itembonuses);
+		NmsParagonApplyBonuses(this, &itembonuses); // AA heroic stats count as item heroics
 		CalcHeroicBonuses(&itembonuses);
 		CalcEdibleBonuses(&itembonuses);
 	}
@@ -197,17 +205,26 @@ void Mob::CalcItemBonuses(StatBonuses* b) {
 		NmsVaultApplyLockerBonuses(CastToClient(), b);
 		NmsVaultApplyModBonuses(CastToClient(), b);
 		if (CastToClient()->GetPP().tribute_active) {
+			int tslot = 0;
 			for (auto const &t: CastToClient()->GetPP().tributes) {
-				auto item_id = CastToClient()->LookupTributeItemID(t.tribute, t.tier);
+				if (NmsIsChronalTribute(t.tribute) && !NmsChronalTributeActive(CastToClient(), tslot)) {
+					tslot++;
+					continue;
+				}
+				// A Chronal Tribute gives the benefit of the rift's band, up to the tier selected
+				const uint32 tier = NmsIsChronalTribute(t.tribute) ? NmsChronalTributeTier(CastToClient(), t.tier) : t.tier;
+				auto item_id = CastToClient()->LookupTributeItemID(t.tribute, tier);
 				if (item_id) {
 					const EQ::ItemInstance *inst = database.CreateItem(item_id);
 					if (!inst) {
+						tslot++;
 						continue;
 					}
 
 					AddItemBonuses(inst, b, false, true);
 					safe_delete(inst);
 				}
+				tslot++;
 			}
 		}
 	}

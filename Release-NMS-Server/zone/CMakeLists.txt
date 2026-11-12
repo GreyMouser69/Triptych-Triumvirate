@@ -33,6 +33,8 @@ SET(zone_sources
     doors.cpp
     dialogue_window.cpp
     dynamic_zone.cpp
+    dynamic_items.cpp
+    dynamic_seed_parser.cpp
     fabled.cpp
     effects.cpp
     embparser.cpp
@@ -117,6 +119,9 @@ SET(zone_sources
     nms_vault_locker.cpp
     nms_lootoffer.cpp
     nms_vault.cpp
+    gear_sets.cpp
+    nms_chronal_tribute.cpp
+    nms_paragon.cpp
     nms_lon_session.cpp
     nms_housing.cpp
     tradeskills.cpp
@@ -163,6 +168,10 @@ SET(zone_headers
     doors.h
     dialogue_window.h
     dynamic_zone.h
+    dynamic_items.h
+    gear_sets.h
+    nms_chronal_tribute.h
+    nms_paragon.h
     fabled.h
     embparser.h
     embperl.h
@@ -369,6 +378,9 @@ set(gm_command_sources
     gm_commands/door.cpp
     gm_commands/door_manipulation.cpp
     gm_commands/dye.cpp
+    gm_commands/dynamic_items.cpp
+    gm_commands/gear.cpp
+    gm_commands/reforge.cpp
     gm_commands/dz.cpp
     gm_commands/dzkickplayers.cpp
     gm_commands/editmassrespawn.cpp

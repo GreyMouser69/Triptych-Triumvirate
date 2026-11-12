@@ -78,6 +78,7 @@ namespace EQ
 #include "../common/repositories/buyer_buy_lines_repository.h"
 #include "../common/repositories/character_evolving_items_repository.h"
 #include "../common/repositories/player_titlesets_repository.h"
+#include "../common/dynamic_item_structs.h"
 #include "../common/repositories/nms_waypoints_repository.h"
 #include "../common/repositories/character_pet_command_states_repository.h"
 
@@ -2985,9 +2986,49 @@ public:
 	bool ReturnNMSLootItemExact(uint32 item_id, uint16 charges);
 	bool PlaceNMSLootItemExact(int16 to_slot, uint32 item_id, uint16 charges);
 
-	bool IsFilteredAFKPacket(const EQApplicationPacket *p);
+		void CheckArmorSetBonuses(StatBonuses* itembonuses);
+		std::unordered_map<uint32, uint32> CountEquippedArmorSetPieces();
+		std::unordered_map<uint32, uint32> m_active_armor_set_tiers;
+		std::vector<uint16> m_set_bonus_sympathetic;
+		std::vector<uint16> m_set_bonus_focus;
+		std::set<uint16>    m_set_bonus_procs;
+		const std::vector<uint16> &GetSetBonusSympatheticSpells() const { return m_set_bonus_sympathetic; }
+		const std::vector<uint16> &GetSetBonusFocusSpells() const { return m_set_bonus_focus; }
+		EQ::DynamicItemBonuses dynamic_item_bonuses;
+
+		bool IsFilteredAFKPacket(const EQApplicationPacket *p);
 	void CheckAutoIdleAFK(PlayerPositionUpdateClient_Struct *p);
 	void SyncWorldPositionsToClient(bool ignore_idle = false);
-};
+	};
 
-#endif
+	// --- Global Structs & Maps (OUTSIDE class Client) ---
+	struct ArmorSetItemDef {
+	uint32 item_id;
+	uint32 set_id;
+	uint32 class_mask;
+	};
+
+	struct ArmorSetBonusDef {
+	uint32 set_id;
+	uint32 min_pieces;
+	uint32 class_mask;
+	int32 stat_id;
+	int32 stat_value;
+	EQ::eDynamicAffixID affix = EQ::AFFIX_NONE;
+	uint16 spell_id   = 0;
+	uint8  spell_type = 0;
+	};
+
+	enum ArmorSetSpellType : uint8 {
+	ArmorSetSpellWorn        = 1,
+	ArmorSetSpellMeleeProc   = 2,
+	ArmorSetSpellSympathetic = 3,
+	ArmorSetSpellFocus       = 4,
+	};
+
+	extern std::unordered_map<uint32, ArmorSetItemDef> g_armor_set_item_map;
+	extern std::unordered_map<uint32, std::vector<ArmorSetBonusDef>> g_armor_set_bonuses_map;
+
+	void LoadArmorSetBonuses();
+
+	#endif

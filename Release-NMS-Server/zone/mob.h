@@ -1617,6 +1617,7 @@ public:
 	uint32 GetAA(uint32 rank_id, uint32 *charges = nullptr) const;
 	uint32 GetAAByAAID(uint32 aa_id, uint32 *charges = nullptr) const;
 	bool SetAA(uint32 rank_id, uint32 new_value, uint32 charges = 0);
+	const std::unordered_map<uint32, std::pair<uint32, uint32>> &GetAAs() const { return aa_ranks; }
 	void ClearAAs() { aa_ranks.clear(); }
 	bool CanUseAlternateAdvancementRank(AA::Rank *rank);
 	bool CanPurchaseAlternateAdvancementRank(AA::Rank *rank, bool check_price, bool check_grant);

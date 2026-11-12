@@ -258,6 +258,19 @@ namespace EQ
 	void               CreateUniqueID() const { m_unique_id = GenerateUniqueID(); }
 	static std::string GenerateUniqueID();
 
+	// Dynamic (seeded) items
+	static constexpr const char *DYNAMIC_SEED_KEY = "dyn_seed";
+	static constexpr const char *DYNAMIC_ENCHANT_KEY = "dyn_ench";
+	using DynamicStatsHook = void (*)(ItemInstance &inst);
+	static DynamicStatsHook dynamic_stats_hook;
+
+	void SetDynamicItemData(const ItemData &data);
+	void ClearDynamicItemData();
+	bool HasDynamicStats() const { return m_dynamic_stats; }
+
+	uint32 GetDisplayID() const { return m_display_id; }
+	void SetDisplayID(uint32 id) { m_display_id = id; }
+
 		std::map<std::string, ::Timer>& GetTimers() const { return m_timers; }
 		void SetTimer(std::string name, uint32 time);
 		void SetTimer(std::string name, uint32 time) const;
@@ -390,6 +403,8 @@ namespace EQ
 		uint32           m_exp{0};
 		int8             m_evolveLvl{0};
 		ItemData *       m_scaledItem{nullptr};
+		bool             m_dynamic_stats{false};
+		uint32           m_display_id{0};
 		bool             m_scaling{false};
 		uint32           m_ornamenticon{0};
 		uint32           m_ornamentidfile{0};

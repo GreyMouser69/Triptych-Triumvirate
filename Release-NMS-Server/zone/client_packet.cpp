@@ -14772,6 +14772,13 @@ void Client::Handle_OP_ShopPlayerSell(const EQApplicationPacket *app)
 		return;
 	}
 
+	// NMS: glamours carry a purchase price for the glamour vendors but have no resale value; the Purveyor
+	// of Glamour also hands them out for Echoes of Memory, so buying them back would mint platinum
+	if (RuleB(Custom, BlockGlamourResale) && Strings::BeginsWith(item->Name, "Glamour - ")) {
+		Message(Chat::MerchantExchange, "%s tells you, 'I have no use for glamours.'", vendor->GetCleanName());
+		return;
+	}
+
 	if (item->SummonedFlag) {
 		if (vendor) {
 			Message(Chat::MerchantExchange, "%s tells you, 'It looks like that item has no value'", vendor->GetCleanName());
@@ -16638,6 +16645,13 @@ void Client::Handle_OP_WearChange(const EQApplicationPacket *app)
 	// Hero Forge ID needs to be fixed here as RoF2 appears to send an incorrect value.
 	if (wc->wear_slot_id >= 0 && wc->wear_slot_id < EQ::textures::weaponPrimary)
 		wc->hero_forge_model = GetHerosForgeModel(wc->wear_slot_id);
+
+	// Texture and tint too: on zone-in the client reports its gear's base look before it applies
+	// ornament (glamour) augments, which overwrote the correct look other players got in the spawn
+	if (wc->wear_slot_id < EQ::textures::materialCount) {
+		wc->material    = GetEquipmentMaterial(wc->wear_slot_id);
+		wc->color.Color = GetEquipmentColor(wc->wear_slot_id);
+	}
 
 	// we could maybe ignore this and just send our own from moveitem
 	// We probably need to skip this entirely when it is send as an ack, but not sure how to ID that.

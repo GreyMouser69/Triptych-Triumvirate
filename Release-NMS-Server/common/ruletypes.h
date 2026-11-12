@@ -970,6 +970,7 @@ RULE_REAL(Merchant, ChaBonusMod, 3.4500000476837, "Determines CHA cap, from 104 
 RULE_REAL(Merchant, ChaPenaltyMod, 1.5199999809265, "Determines CHA bottom, up to 102 CHA. 1.52 is 37 CHA at apprehensive. 0.98 is 0 CHA at apprehensive")
 RULE_BOOL(Merchant, EnableAltCurrencySell, true, "Enables the ability to resell items to alternate currency merchants")
 RULE_BOOL(Merchant, AllowCorpse, false, "Setting whether dealers leave a corpse behind ")
+RULE_INT(Merchant, DynamicItemSellRefundPct, 20, "Percent of the alternate currency cost refunded when selling a dynamic (seeded) item back to a merchant")
 RULE_CATEGORY_END()
 
 RULE_CATEGORY(Bazaar)
@@ -1416,6 +1417,23 @@ RULE_STRING(Custom, LoNWebsiteUrl,                          "",      "Legends of
 RULE_STRING(Custom, LoNMOTD,                                "Welcome to Legends of Norrath! Learn the game in Tutorials, build your decks, trade with other players, and good luck at the table.", "Legends of Norrath: the home screen's Message of the Day, sent at card-game login. Plain text (HTML is shown as text). Empty = the box stays blank.")
 RULE_BOOL(Custom,   SoDMercTiers,                           true,    "Seeds of Destruction: theme progression raises the mercenary tier cap (the v89 OG=T2..Rathe=T5 design). Tier 1 is open to everyone; each completed SoD theme (Oceangreen, Kithicor, Kunark/Field of Scale, Rathe) adds one tier, capped at 5. The cap is read from the '<accountid>-sod-merc-tier' data bucket that plugins/NMS_sod_utils.pl keeps current (on every SoD chain-flag change and on zone-in); a missing bucket = Tier 1 only. GMs bypass. Set false for the old global behavior.")
 RULE_BOOL(Custom,   MercBotBrain,                           false,   "Master and Legendary mercenaries (proficiency 3+) think like bots instead of using the stock merc brain: priority-ordered cast dispatch, hate-drop Concussive nukes when aggro looms, roots on fleeing targets, stun-rider nukes, and healer mercs interrupt enemy casts once nobody needs healing. Apprentice/Journeyman keep the stock merc brain regardless. The new spell behaviors also need the v296 merc spell list rows; a tier whose lists lack them simply behaves stock. Fail-closed: false = stock behavior everywhere.")
+
+// Platinum and AA sinks: Chronal Tributes, Paragon AAs, reforging dynamic items
+RULE_INT(Custom,    DynamicItemPctCap,                     100, "Cap on each dynamic item percent total (a skill %, ability damage %, spell type damage %, heal %, bard instrument %, crit damage %). 0 = no cap.")
+RULE_INT(Custom,    DynamicItemCritChancePctCap,           50, "Cap on each dynamic item critical hit chance total (spell, DoT, heal, HoT, melee, archery). 0 = no cap.")
+RULE_BOOL(Custom,   DynamicItemDisplayIds,                 true, "Send each dynamic (seeded) item copy to clients under its own item ID so the item window shows that copy's rolls")
+RULE_INT(Custom,    ChronalTributeFirstID,                 60, "First tribute ID that is a Chronal Tribute")
+RULE_INT(Custom,    ChronalTributeLastID,                  69, "Last tribute ID that is a Chronal Tribute")
+RULE_INT(Custom,    ChronalTributeBandSize,                100, "Rift tiers per Chronal Tribute tier")
+RULE_INT(Custom,    ChronalTributeFavorPerTier,            100, "Favor each Chronal Tribute costs per rift run")
+RULE_INT(Custom,    ReforgeNPCID,                          1200050, "NPC that #reforge must be used at")
+RULE_INT(Custom,    ReforgePlatBase,                       25000, "Platinum for first reforge of tier 1 dynamic item")
+RULE_INT(Custom,    ReforgeCurrencyBase,                   50, "Alternate currency for first reforge")
+RULE_INT(Custom,    ReforgeCurrencyID,                     2, "Alternate currency #reforge charges")
+RULE_INT(Custom,    ReforgeCostGrowthPct,                  25, "Each reforge costs this much more percent")
+RULE_INT(Custom,    ReforgeCostMaxPct,                     500, "Reforge costs stop rising at this percent")
+RULE_STRING(Custom, ArmorSetTierVisuals,                   "0,0,0,0", "Spell effect ids for armor set tier transitions: tier1,tier2,tier3,tier lost (0 = none)")
+RULE_BOOL(Custom,   BlockGlamourResale,                    true, "Merchants refuse to buy \"Glamour - '...'\" ornaments (they carry a vendor purchase price but no resale value)")
 
 RULE_CATEGORY_END()
 

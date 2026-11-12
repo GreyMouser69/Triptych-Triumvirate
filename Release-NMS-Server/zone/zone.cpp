@@ -1279,6 +1279,9 @@ bool Zone::Init(bool is_static) {
 
 	LogInfo("Zone booted successfully zone_id [{}] time_offset [{}]", zoneid, zone_time.getEQTimeZone());
 
+	LogInfo("Loading Armor Set Bonuses...");
+	LoadArmorSetBonuses();
+
 	// logging origination information
 	EQEmuLogSys::Instance()->origination_info.zone_short_name = zone->short_name;
 	EQEmuLogSys::Instance()->origination_info.zone_long_name  = zone->long_name;
