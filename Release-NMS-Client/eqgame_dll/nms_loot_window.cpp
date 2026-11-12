@@ -216,7 +216,6 @@ void NmsLootWnd::OnLootModelChanged(Change why) {
         s_instance->RefreshPending();
         s_instance->RefreshRoster();
         s_instance->SetStatus("New loot to review.");
-        ((CXWnd*)s_instance)->Show(true, true);
         return;
     }
 

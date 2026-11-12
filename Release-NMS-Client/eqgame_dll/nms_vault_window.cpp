@@ -177,10 +177,6 @@ void NmsVaultWnd::OnVaultChanged(NmsVaultChange why) {
     switch (why) {
 
     case NMS_VAULT_CHANGED_OPEN:
-        // The only path that creates and shows. A first OPEN of the session has no
-        // instance yet, and must still bring the window up by itself -- the player
-        // must not have to ask twice.
-        ShowPage(proto->OpenPage());
         return;
 
     case NMS_VAULT_CHANGED_ADD:

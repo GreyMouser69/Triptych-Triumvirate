@@ -1,12 +1,6 @@
 <?xml version="1.0" encoding="us-ascii"?>
 <XML ID="EQInterfaceDefinitionLanguage">
   <Schema xmlns="EverQuestData" xmlns:dt="EverQuestDataTypes" />
-  <TextureInfo item="EQLS_window_pieces_01.tga">
-    <Size>
-      <CX>256</CX>
-      <CY>256</CY>
-    </Size>
-  </TextureInfo>
 
 <!-- Shared button animations. Slices and naming are copied verbatim from
      NMS_WaypointsWnd.xml (and so from NMS_VaultWnd.xml), because a wrong offset
